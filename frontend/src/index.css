@@ -183,6 +183,11 @@ h1, h2, h3 {
   text-shadow: 2px 2px 0px #000;
 }
 
+.fog-text {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+}
+
 /* Lobby Grid */
 .lobby-grid {
   display: grid;

@@ -9,6 +9,7 @@ import { socketService } from '../socket.service';
 import { RoleDistributionPhase } from './phases/role-distribution';
 import { NightPhase } from './phases/night';
 import { DayPhase } from './phases/day';
+import { GameOverPhase } from './phases/game-over';
 import { ROLES, Role } from '@shared/roles.js';
 
 export class GamePage extends View {
@@ -134,6 +135,9 @@ export class GamePage extends View {
                 break;
             case Phase.DAY:
                 this.currentPhaseView = new DayPhase();
+                break;
+            case Phase.GAME_OVER:
+                this.currentPhaseView = new GameOverPhase();
                 break;
             default:
                 this.currentPhaseView = new PlaceholderPhase(phase);

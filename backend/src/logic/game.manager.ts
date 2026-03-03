@@ -1,6 +1,6 @@
 import { GameStore } from "../store/game.store.js";
 import { type Game, type Player } from "../models.js";
-import { Role, ROLES } from '@shared/roles.js';
+import { Role, ROLES, Team } from '@shared/roles.js';
 import { Phase } from "@shared/phases.js";
 import { v4 as uuidv4 } from 'uuid';
 import { socketService } from "../socket.service.js";
@@ -51,7 +51,7 @@ export class GameManager {
             displayName: p.displayName,
             isSheriff: p.playerUUID === game.sheriffUUID,
             isAlive: p.isAlive,
-            role: p.isAlive ? null : p.role
+            role: (game.phase === Phase.GAME_OVER || !p.isAlive) ? p.role : null
         }));
 
         const localStatePatch: object = {
@@ -61,6 +61,7 @@ export class GameManager {
             activeNightRole: game.activeNightRole,
             players: localPlayerList,
             lynchDone: game.lynchDone,
+            winningTeam: game.winningTeam,
 
             displayName: player.displayName,
             isManager: player.playerUUID === game.managerUUID,
@@ -113,6 +114,7 @@ export class GameManager {
             sheriffUUID: null,
             lynchDone: false,
             lastVotedOutUUID: null,
+            winningTeam: "",
         }
 
         socketService.notifyGameCreated(socketId, gameId);
@@ -243,6 +245,7 @@ export class GameManager {
         game.activeNightRole = this.getFirstToWakeUp(game);
         if(!game.activeNightRole) throw new Error(`Game ${game.gameId} does not have an active night role (${game.activeNightRole}), although the game started!`);
         console.log(`Game ${gameId} started...`)
+        this.isGameOver(gameId);
         this.broadcastSyncState(gameId);
         this.store.updateGame(game);
     }
@@ -289,6 +292,7 @@ export class GameManager {
         const player = this.getPlayerFromNight(game, socketId, role);
 
         handler(game, player, ...handlerArgs);
+        this.isGameOver(gameId);
         this.broadcastSyncState(gameId);
         this.store.updateGame(game);
     }
@@ -368,6 +372,7 @@ export class GameManager {
         // reset votes
         game.lynchDone = true;
         game.lastVotedOutUUID = electedPlayer?.playerUUID ?? null;
+        this.isGameOver(game.gameId);
         console.log(`Voting Resolved in Game ${game.gameId}. Player voted out: ${electedPlayer?.playerUUID}`)
     }
 
@@ -394,6 +399,34 @@ export class GameManager {
         }
         this.broadcastSyncState(gameId);
         this.store.updateGame(game);
+    }
+
+    // TODO: make end of game logic more elaborate (e.g. if 3 werewolves + 1 villager => village cannot win)
+    isGameOver(gameId: string) {
+        const game = this.store.getGame(gameId);
+        if (!game) throw new Error(`Game with ID ${gameId} not found!`);
+        const alivePlayers = game.players.filter((player) => player.isAlive);
+        if(alivePlayers.length === 0) { // no more players alive
+            game.phase = Phase.GAME_OVER;
+            game.winningTeam = null;
+        }
+        // OPTION 1: only werewolves are alive
+        const isWerewolf = (player: Player) => player.role == Role.WEREWOLF;
+        if(alivePlayers.every(isWerewolf)) {
+            game.phase = Phase.GAME_OVER;
+            game.winningTeam = 'werewolves'; // only werewolves alive
+        }
+        // OPTION 2: all werewolves are dead
+        if(!alivePlayers.some(isWerewolf)) {
+            game.phase = Phase.GAME_OVER;
+            game.winningTeam = 'village'; // all werewolves are dead
+        }
+        // OPTION 3: only the loving pair is alive
+        const isInLove = (player: Player) => player.lovePartner != null;
+        if(alivePlayers.length === 2 && alivePlayers.every(isInLove)) {
+            game.phase = Phase.GAME_OVER;
+            game.winningTeam = 'couple'; // only couple lives
+        }
     }
 
 }

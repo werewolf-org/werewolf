@@ -11,8 +11,7 @@ export enum Role {
 
 export enum Team {
     VILLAGE = "VILLAGE",
-    WOLF = "WOLF",
-    SOLO = "SOLO"
+    WOLF = "WOLF"
 }
 
 export interface RoleDef {
@@ -43,8 +42,8 @@ export const ROLES: Record<Role, RoleDef> = {
     },
     [Role.RED_LADY]: {
         role: Role.RED_LADY,
-        displayName: "Red Person",
-        pluralName: "Red Persons",
+        displayName: "Red Lady",
+        pluralName: "Red Ladies",
         description: "Each night, choose one player to visit. If you are attacked while visiting, you survive. But if your host is attacked that night, you die too.",
         narratorNotes: "Wake Red Lady, have them point a player to visit, note choice, close eyes.",
         wakesUp: true,

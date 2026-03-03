@@ -27,6 +27,7 @@ export interface Game {
     round: number,
     phase: Phase,
     activeNightRole: Role | null,
+    winningTeam: string | null,
 
     sheriffUUID: string | null,
     lynchDone: boolean,

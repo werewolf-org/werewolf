@@ -1,0 +1,61 @@
+<div class="pixel-card" style="text-align: center;">
+    <h1>GAME OVER</h1>
+    
+    <div style="margin: var(--spacing-lg) 0;">
+        <h2 id="winner-team-text">THE VILLAGE WINS!</h2>
+        <p id="player-status-text">You won!</p>
+    </div>
+
+    <div style="text-align: left; margin-top: var(--spacing-lg);">
+        <h3 style="text-align: left;">FINAL ROLES</h3>
+        <ul id="final-roles-list" class="pixel-list">
+            <!-- List of players and their roles rendered in TS -->
+        </ul>
+    </div>
+
+    <div class="manager-controls">
+        <button id="back-to-lobby-btn" class="btn">Back to Lobby</button>
+    </div>
+</div>
+
+<style>
+    /* Team specific winning colors */
+    .winner-wolf {
+        color: var(--accent) !important;
+    }
+
+    .winner-village {
+        color: #4eff4e !important;
+    }
+
+    .winner-couple {
+        color: var(--highlight) !important;
+    }
+
+    /* Status text styling */
+    .status-win {
+        color: #ffffff !important;
+        text-shadow: 2px 2px 0px #000;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 0.8rem;
+        display: block;
+        margin-top: var(--spacing-sm);
+    }
+
+    .status-loss {
+        color: var(--text-muted);
+        font-style: italic;
+        display: block;
+        margin-top: var(--spacing-sm);
+    }
+
+    /* Player list overrides */
+    .dead-player {
+        opacity: 0.5;
+        text-decoration: line-through;
+    }
+
+    .final-role-item {
+        justify-content: space-between;
+    }
+</style>
