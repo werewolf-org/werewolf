@@ -111,8 +111,8 @@ export class GamePage extends View {
     private renderPhase(phase: Phase): void {
         if (!this.phaseContainer) return;
 
-        // Safety: Ensure Dark Mode if not in Day Phase or Sheriff Election
-        if (phase !== Phase.DAY && phase !== Phase.SHERIFF_ELECTION) {
+        // Safety: Ensure Dark Mode if not in Day Phase, Sheriff Election, or Game Over (which handles it dynamically)
+        if (phase !== Phase.DAY && phase !== Phase.SHERIFF_ELECTION && phase !== Phase.GAME_OVER) {
             document.body.classList.remove('light-mode');
         }
 

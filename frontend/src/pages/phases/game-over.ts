@@ -40,16 +40,19 @@ export class GameOverPhase extends View {
         winningTeamText.classList.remove('winner-wolf', 'winner-village', 'winner-couple');
         
         if (state.winningTeam === 'werewolves') {
+            document.body.classList.remove('light-mode');
             winnerName = "The Werewolves Win!";
             winningTeamText.classList.add('winner-wolf');
             audioService.playNarration('werewolves_won', 'overwrite');
             audioService.setAtmosphere('Werewolf');
         } else if (state.winningTeam === 'village') {
+            document.body.classList.add('light-mode');
             winnerName = "The Village Wins!";
             winningTeamText.classList.add('winner-village');
             audioService.playNarration('village_won', 'overwrite');
             audioService.setAtmosphere('Village-Won');
         } else if (state.winningTeam === 'couple') {
+            document.body.classList.add('light-mode');
             winnerName = "The Lovers Win!";
             winningTeamText.classList.add('winner-couple');
             audioService.playNarration('lovers_won', 'overwrite');

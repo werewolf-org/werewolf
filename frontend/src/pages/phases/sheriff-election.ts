@@ -2,6 +2,7 @@ import { View } from '../../base-view';
 import sheriffElectionHtml from './sheriff-election.html?raw';
 import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
+import { audioService } from '../../audio.service';
 
 export class SheriffElectionPhase extends View {
     private selectedTargetUUID: string | null = null;
@@ -13,8 +14,22 @@ export class SheriffElectionPhase extends View {
         // Switch to Light Mode for Election (Daylight feel)
         document.body.classList.add('light-mode');
 
+        audioService.setAtmosphere('Village');
+        audioService.playNarration('sheriff_voting', 'overwrite');
+
         // Reactive Subscriptions
-        subscribeSelector(this, s => s.sheriffElectionDone, () => this.updateUI());
+        subscribeSelector(this, s => s.sheriffElectionDone, (done) => {
+            if (done) {
+                const state = getState();
+                const anySheriff = state.players.some(p => p.isSheriff);
+                if (anySheriff) {
+                    audioService.playNarration('sheriff_found', 'overwrite');
+                } else {
+                    audioService.playNarration('sheriff_not_found', 'overwrite');
+                }
+            }
+            this.updateUI();
+        });
         subscribeSelector(this, s => s.myVoteTargetUUID, () => this.updateUI());
         subscribeSelector(this, s => s.players, () => this.updateUI());
 
