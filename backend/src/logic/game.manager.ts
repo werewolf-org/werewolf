@@ -112,6 +112,7 @@ export class GameManager {
             phase: Phase.LOBBY,
             activeNightRole: null,
             sheriffUUID: null,
+            sheriffElectionDone: false,
             lynchDone: false,
             lastVotedOutUUID: null,
             winningTeam: "",
@@ -297,11 +298,13 @@ export class GameManager {
         this.store.updateGame(game);
     }
 
+    // both for sheriff election and lynch voting
     vote(gameId: string, socketId: string, targetUUID: string): void {
         const game = this.store.getGame(gameId);
         if(!game) throw new Error(`Game with ID ${gameId} not found!`)
-        if(game.phase !== Phase.DAY) throw new Error(`Game with ID ${gameId} is not in Phase DAY, so voting cannot happen right now`);
-        if(game.lynchDone) throw new Error(`Cannot vote in Game ${game.gameId} since lynch is already done!`);
+        if(game.phase !== Phase.DAY && game.phase && Phase.SHERIFF_ELECTION) throw new Error(`Game with ID ${gameId} is not in Phase DAY or in Phase SHERIFF_VOTING, so voting cannot happen right now`);
+        if(game.phase === Phase.DAY && game.lynchDone) throw new Error(`Cannot vote in Game ${game.gameId} since lynch is already done!`);
+        if(game.phase === Phase.SHERIFF_ELECTION && game.sheriffElectionDone) throw new Error(`Cannot vote sheriff in Game ${game.gameId} since sheriff voting is already done!`);
         
         const player = game.players.find((player) => player.socketId === socketId);
         if(!player) throw new Error(`Player with socketId ${socketId} not found in ${gameId}`);
@@ -310,7 +313,10 @@ export class GameManager {
         player.voteTargetUUID = targetUUID;
 
         const everyoneVoted: boolean = this.checkIfEveryoneVoted(game);
-        if(everyoneVoted) this.resolveVoting(game);
+        if (everyoneVoted) {
+            if(game.phase === Phase.DAY) this.resolveVoting(game);
+            else if (game.phase === Phase.SHERIFF_ELECTION) this.resolveSheriffVoting(game);
+        }
 
         this.broadcastSyncState(gameId);
         this.store.updateGame(game);
@@ -325,7 +331,7 @@ export class GameManager {
     }
 
     private getVoteResults(game: Game): Record<string, string | null> | null {
-        if(game.phase !== Phase.DAY) return null;
+        if(game.phase !== Phase.DAY && game.phase != Phase.SHERIFF_ELECTION) return null;
         return Object.fromEntries(
             game.players
                 .filter(p => p.playerUUID !== null)
@@ -333,7 +339,7 @@ export class GameManager {
         );
     }
 
-    private getVotedOut(game: Game): Player | null {
+    private getMostVotedPlayer(game: Game): Player | null {
         const votes: Record<string, number> = {}
         const alivePlayers = game.players.filter((player) => player.isAlive)
         if(alivePlayers.length === 0) return null;
@@ -360,20 +366,25 @@ export class GameManager {
     }
     
     private resolveVoting(game: Game): void {
-        if(game.phase !== Phase.DAY) throw new Error(`Game with ID ${game.gameId} is not in Phase DAY, so voting cannot happen right now`);
         if(!game.players.find((player) => player.voteTargetUUID)) throw new Error(`Not all players in Game ${game.gameId} have voted!`);
-
-        const electedPlayer = this.getVotedOut(game); 
+        const electedPlayer = this.getMostVotedPlayer(game); 
         if(electedPlayer) {
             electedPlayer.isAlive = false;
             checkCoupleDying(game, electedPlayer.playerUUID);
         }
-
         // reset votes
         game.lynchDone = true;
         game.lastVotedOutUUID = electedPlayer?.playerUUID ?? null;
         this.isGameOver(game.gameId);
         console.log(`Voting Resolved in Game ${game.gameId}. Player voted out: ${electedPlayer?.playerUUID}`)
+    }
+
+    private resolveSheriffVoting(game: Game): void {
+        if(!game.players.find((player) => player.voteTargetUUID)) throw new Error(`Not all players in Game ${game.gameId} have voted!`);
+        const electedPlayer = this.getMostVotedPlayer(game); 
+        if(electedPlayer) game.sheriffUUID = electedPlayer.playerUUID;
+        game.sheriffElectionDone = true;
+        console.log(`Sheriff Voting Resolved in Game ${game.gameId}. New sheriff: ${electedPlayer?.playerUUID}`)
     }
 
     readyForNight(gameId: string, socketId: string) {

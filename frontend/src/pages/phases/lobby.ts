@@ -29,13 +29,13 @@ export class LobbyPhase extends View {
         }
 
         // 2. Reactive Subscriptions
-        this.unsubs.push(subscribeSelector(s => s.players, (players) => {
+        subscribeSelector(this, s => s.players, (players) => {
             this.updatePlayerList(players);
-        }));
+        });
 
-        this.unsubs.push(subscribeSelector(s => s.isManager, (isManager) => {
+        subscribeSelector(this, s => s.isManager, (isManager) => {
             this.toggleManagerUI(isManager);
-        }));
+        });
 
         // Initial render
         this.setupNameInput(state);

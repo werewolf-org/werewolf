@@ -12,12 +12,12 @@ export class CupidPhase extends View {
         this.container.innerHTML = cupidHtml;
 
         // Reactive Subscriptions
-        this.unsubs.push(subscribeSelector(s => s.lovePartnerUUID, () => this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.lovePartnerConfirmed, () => this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.cupidFirstLoverUUID, () =>  this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.cupidFirstLoverConfirmed, () => this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.cupidSecondLoverConfirmed, () => this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.players, () => this.updateUI()));
+        subscribeSelector(this, s => s.lovePartnerUUID, () => this.updateUI());
+        subscribeSelector(this, s => s.lovePartnerConfirmed, () => this.updateUI());
+        subscribeSelector(this, s => s.cupidFirstLoverUUID, () =>  this.updateUI());
+        subscribeSelector(this, s => s.cupidFirstLoverConfirmed, () => this.updateUI());
+        subscribeSelector(this, s => s.cupidSecondLoverConfirmed, () => this.updateUI());
+        subscribeSelector(this, s => s.players, () => this.updateUI());
 
         this.setupCupidListeners();
         this.setupLoverListeners();

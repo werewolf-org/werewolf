@@ -12,9 +12,9 @@ export class SeerPhase extends View {
         this.container.innerHTML = seerHtml;
 
         // Reactive Subscriptions
-        this.unsubs.push(subscribeSelector(s => s.seerRevealUUID, () => this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.seerRevealRole, () => this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.players, () => this.updateUI()));
+        subscribeSelector(this, s => s.seerRevealUUID, () => this.updateUI());
+        subscribeSelector(this, s => s.seerRevealRole, () => this.updateUI());
+        subscribeSelector(this, s => s.players, () => this.updateUI());
 
         this.setupSelectionListeners();
         this.setupDismissListener();

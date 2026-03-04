@@ -42,12 +42,12 @@ export class GamePage extends View {
 
         console.log(`GamePage mounted for ${this.gameId}`);
 
-        this.unsubs.push(subscribeSelector(s => s.phase, (phase) => {
+        subscribeSelector(this, s => s.phase, (phase) => {
             if (phase) this.renderPhase(phase);
-        }));
+        });
 
         // Global death tracking
-        this.unsubs.push(subscribeSelector(s => s.players, (players) => {
+        subscribeSelector(this, s => s.players, (players) => {
             if (players.length === 0) return;
 
             // On first sync after join/rejoin, just mark currently dead players as "known"
@@ -60,7 +60,7 @@ export class GamePage extends View {
             }
 
             this.checkForNewDeaths(players);
-        }));
+        });
 
         // Setup close button for global popup
         const closeBtn = document.getElementById('close-death-popup');

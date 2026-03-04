@@ -31,6 +31,7 @@ export interface Game {
 
     sheriffUUID: string | null,
     lynchDone: boolean,
+    sheriffElectionDone: boolean,
     lastVotedOutUUID: string | null,
 }
 

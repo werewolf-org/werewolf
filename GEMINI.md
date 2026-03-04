@@ -22,7 +22,7 @@ The project follows a **Reactive State Machine** pattern. In this model, the Fro
 ### Core Mandates:
 1.  **State-Driven UI**: UI elements MUST NOT trigger other UI elements directly. All UI changes must be a side-effect of a state update. (e.g., A button click calls a socket action -> Socket updates the Store -> Store triggers a UI re-render).
 2.  **Unidirectional Data Flow**: Backend State -> Socket `syncState` -> Frontend Store -> UI.
-3.  **Tailored Snapshots**: Instead of granular events, the backend sends a "Tailored State Snapshot" (`syncState`) to each player. This snapshot contains only the information that specific player is allowed to see (e.g., their own role, their own potion status, and public game info).
+3.  **Tailored Snapshots**: Instead of granular events, the backend sends a "Tailored State Snapshot" (`syncState`) to each player. This snapshot contains only the information that specific player is allowed to see (e.g., their own role, their own potion status, and public game info). **Exception**: When the phase is `GAME_OVER`, all player roles and statuses are revealed to everyone for the summary screen.
 
 # Development Setup
 
@@ -84,7 +84,7 @@ The frontend is built without a heavy framework (like React or Vue), relying on 
 - **Lifecycle**:
     - `mount(container)`: Called when the view enters the DOM.
     - `unmount()`: Called when the view is replaced. It automatically cleans up all store subscriptions.
-- **Subscription Management**: Views use `this.unsubs.push(subscribeSelector(...))` to track listeners. This prevents "ghost" updates from old rounds or destroyed components by ensuring all listeners are killed during `unmount()`.
+- **Subscription Management**: Views use `subscribeSelector(this, selector, callback)` to register listeners. The store automatically adds these to the `View`'s internal unsubscription list. This prevents "ghost" updates from old rounds or destroyed components by ensuring all listeners are killed during `unmount()`.
 - **Self-Updating**: Views are reactive. They mount once and listen to the store, mapping the current state to HTML whenever a relevant change occurs.
 
 ### 3. Routing (`src/router.ts`)

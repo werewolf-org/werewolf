@@ -9,13 +9,13 @@ export class GameOverPhase extends View {
         this.container = container;
         this.container.innerHTML = gameOverHtml;
 
-        this.unsubs.push(subscribeSelector(s => s.winningTeam, (_winningTeam) => {
+        subscribeSelector(this, s => s.winningTeam, (_winningTeam) => {
             this.render();
-        }));
+        });
 
-        this.unsubs.push(subscribeSelector(s => s.players, (_players) => {
+        subscribeSelector(this, s => s.players, (_players) => {
             this.render();
-        }));
+        });
 
         const backBtn = document.getElementById('back-to-lobby-btn');
         if (backBtn) {

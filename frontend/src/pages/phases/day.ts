@@ -18,14 +18,14 @@ export class DayPhase extends View {
         document.body.classList.add('light-mode');
 
         // Reactive Subscriptions
-        this.unsubs.push(subscribeSelector(s => s.lynchDone, () => {
+        subscribeSelector(this, s => s.lynchDone, () => {
             audioService.playNarration('end_of_day', 'overwrite');
             audioService.setAtmosphere('Evening');
             this.updateUI()}
-        ));
-        this.unsubs.push(subscribeSelector(s => s.myVoteTargetUUID, () => this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.readyForNight, () => this.updateUI()));
-        this.unsubs.push(subscribeSelector(s => s.players, () => this.updateUI()));
+        );
+        subscribeSelector(this, s => s.myVoteTargetUUID, () => this.updateUI());
+        subscribeSelector(this, s => s.readyForNight, () => this.updateUI());
+        subscribeSelector(this, s => s.players, () => this.updateUI());
 
         this.setupEventListeners();
         

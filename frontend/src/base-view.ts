@@ -4,6 +4,10 @@ export abstract class View {
 
   abstract mount(container: HTMLElement): void;
 
+  addUnsub(unsub: () => void): void {
+    this.unsubs.push(unsub);
+  }
+
   unmount(): void {
     this.unsubs.forEach(unsub => unsub());
     this.unsubs = [];

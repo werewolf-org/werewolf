@@ -17,15 +17,15 @@ export class NightPhase extends View {
         this.container.innerHTML = nightHtml;
 
         // Reactive Subscriptions
-        this.unsubs.push(subscribeSelector(s => s.activeNightRole, (role) => {
+        subscribeSelector(this, s => s.activeNightRole, (role) => {
             if (role) this.playRoleWakingAudio(role);
             this.updateNightView();
-        }));
+        });
         
-        this.unsubs.push(subscribeSelector(s => s.cupidSelectedLovers, () => audioService.playNarration('love_partners', 'overwrite')));
-        this.unsubs.push(subscribeSelector(s => s.players, () => this.updateNightView()));
-        this.unsubs.push(subscribeSelector(s => s.role, () => this.updateNightView()));
-        this.unsubs.push(subscribeSelector(s => s.lovePartnerUUID, () => this.updateNightView()));
+        subscribeSelector(this, s => s.cupidSelectedLovers, () => audioService.playNarration('love_partners', 'overwrite'));
+        subscribeSelector(this, s => s.players, () => this.updateNightView());
+        subscribeSelector(this, s => s.role, () => this.updateNightView());
+        subscribeSelector(this, s => s.lovePartnerUUID, () => this.updateNightView());
 
         // Initial render
         const activeNightRole = getState().activeNightRole;

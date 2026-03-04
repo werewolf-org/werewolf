@@ -1,5 +1,6 @@
 import { Role} from '@shared/roles.js'
 import { Phase } from '@shared/phases';
+import { View } from './base-view';
 
 export interface LocalPlayerModel {
     playerUUID: string, 
@@ -7,6 +8,7 @@ export interface LocalPlayerModel {
     isAlive: boolean,
     isSheriff: boolean,
     role: Role | null,
+    lovePartner: string | null,
 }
 
 export interface LocalAppState {
@@ -105,24 +107,26 @@ export function setState(patch: Partial<LocalAppState>): void {
     listeners.forEach((fn) => fn(updatedState));
 }
 
-export function subscribe(fn: Listener): () => void {
+function subscribe(fn: Listener): () => void {
     listeners.add(fn);
     return () => listeners.delete(fn);
 }
 
-// Subscribe to a specific part of the state. 
+// Subscribe to a specific part of the state and register it to a View's lifecycle.
 export function subscribeSelector<T>(
+    view: View,
     selector: (state: LocalAppState) => T,
     fn: (value: T) => void
-): () => void {
+): void {
     let lastValue = selector(state);
-    return subscribe((newState) => {
+    const unsub = subscribe((newState) => {
         const newValue = selector(newState);
         if (newValue !== lastValue) {
             lastValue = newValue;
             fn(newValue);
         }
     });
+    view.addUnsub(unsub);
 }
 
 export function resetState(): void {
