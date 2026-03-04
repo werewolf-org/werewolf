@@ -74,6 +74,16 @@ class SocketService {
         this.socket?.emit('readyForNight', { gameId });
     }
 
+    public acceptSheriffRole() {
+        const gameId = getState().gameId;
+        this.socket?.emit('acceptSheriffRole', { gameId });
+    }
+
+    public gmContinueToDay() {
+        const gameId = getState().gameId;
+        this.socket?.emit('gmContinueToDay', { gameId });
+    }
+
     // Role specific emits
 
     public werewolfVote(targetUUID: string) {

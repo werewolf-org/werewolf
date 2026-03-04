@@ -87,6 +87,9 @@ io.on('connection', (socket) => {
   // after lynch: for players to go to night
   socket.on('readyForNight', handleErrors(({gameId}) => gameManager.readyForNight(gameId, socket.id)));
 
+  // SHERIFF
+  socket.on('acceptSheriffRole', handleErrors(({gameId}) => gameManager.acceptSheriffRole(gameId, socket.id)));
+  socket.on('gmContinueToDay', handleErrors(({gameId}) => gameManager.gmContinueToDay(gameId, socket.id)));
 
   // -----
   socket.on('disconnect', () => {

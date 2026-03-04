@@ -89,7 +89,7 @@ export class GameOverPhase extends View {
             return `
                 <li class="pixel-list-item final-role-item ${!p.isAlive ? 'dead-player' : ''}">
                     <span style="${isWinner ? 'color: #ffcc00;' : ''}">
-                        ${p.displayName} ${p.isSheriff ? '🤠' : ''}
+                        ${p.displayName}
                     </span>
                     <span class="fog-text">${roleDef ? roleDef.displayName : 'Unknown'}</span>
                 </li>

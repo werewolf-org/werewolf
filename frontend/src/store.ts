@@ -31,6 +31,7 @@ export interface LocalAppState {
     readyForNight: boolean,
     myVoteTargetUUID: string | null,
     lynchDone: boolean,
+    sheriffElectionDone: boolean,
     winningTeam: string | null,
     
     // aggregated state (from game model)
@@ -74,6 +75,7 @@ const state: LocalAppState = {
     readyForNight: false,
     myVoteTargetUUID: null,
     lynchDone: false,
+    sheriffElectionDone: false,
     winningTeam: null,
 
     voteResults: null,
@@ -147,6 +149,7 @@ export function resetState(): void {
         readyForNight: false,
         myVoteTargetUUID: null,
         lynchDone: false,
+        sheriffElectionDone: false,
 
         voteResults: null,
         votedOutUUID: null,

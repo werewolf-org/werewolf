@@ -61,6 +61,7 @@ export class GameManager {
             activeNightRole: game.activeNightRole,
             players: localPlayerList,
             lynchDone: game.lynchDone,
+            sheriffElectionDone: game.sheriffElectionDone,
             winningTeam: game.winningTeam,
 
             displayName: player.displayName,
@@ -302,7 +303,7 @@ export class GameManager {
     vote(gameId: string, socketId: string, targetUUID: string): void {
         const game = this.store.getGame(gameId);
         if(!game) throw new Error(`Game with ID ${gameId} not found!`)
-        if(game.phase !== Phase.DAY && game.phase && Phase.SHERIFF_ELECTION) throw new Error(`Game with ID ${gameId} is not in Phase DAY or in Phase SHERIFF_VOTING, so voting cannot happen right now`);
+        if(game.phase !== Phase.DAY && game.phase !== Phase.SHERIFF_ELECTION) throw new Error(`Game with ID ${gameId} is not in Phase DAY or in Phase SHERIFF_ELECTION, so voting cannot happen right now`);
         if(game.phase === Phase.DAY && game.lynchDone) throw new Error(`Cannot vote in Game ${game.gameId} since lynch is already done!`);
         if(game.phase === Phase.SHERIFF_ELECTION && game.sheriffElectionDone) throw new Error(`Cannot vote sheriff in Game ${game.gameId} since sheriff voting is already done!`);
         
@@ -323,7 +324,7 @@ export class GameManager {
     }
 
     private checkIfEveryoneVoted(game: Game): boolean {
-        if(game.phase !== Phase.DAY) throw new Error(`Game with ID ${game.gameId} is not in Phase DAY, so voting cannot happen right now`)
+        if(game.phase !== Phase.DAY && game.phase !== Phase.SHERIFF_ELECTION) throw new Error(`Game with ID ${game.gameId} is not in Phase DAY or SHERIFF_ELECTION, so voting cannot happen right now`)
 
         const alivePlayers = game.players.filter((player) => player.isAlive)
         const playersWhoVotes = alivePlayers.filter((player) => player.voteTargetUUID !== null);
@@ -385,6 +386,32 @@ export class GameManager {
         if(electedPlayer) game.sheriffUUID = electedPlayer.playerUUID;
         game.sheriffElectionDone = true;
         console.log(`Sheriff Voting Resolved in Game ${game.gameId}. New sheriff: ${electedPlayer?.playerUUID}`)
+    }
+
+    acceptSheriffRole(gameId: string, socketId: string) {
+        const game = this.store.getGame(gameId);
+        if (!game) throw new Error(`Game with ID ${gameId} not found!`);
+        if(game.phase !== Phase.SHERIFF_ELECTION) throw new Error(`Game ${game.gameId} is not in SHERIFF_ELECTION phase.`);
+        const player = game.players.find((p) => p.socketId === socketId);
+        if(!player) throw new Error(`Player with socketId ${socketId} not found.`);
+        if(player.playerUUID !== game.sheriffUUID) throw new Error(`Player is not the elected sheriff.`);
+
+        game.phase = Phase.DAY;
+        game.players.forEach((p) => p.voteTargetUUID = null);
+        this.broadcastSyncState(gameId);
+        this.store.updateGame(game);
+    }
+
+    gmContinueToDay(gameId: string, socketId: string) {
+        const game = this.store.getGame(gameId);
+        if (!game) throw new Error(`Game with ID ${gameId} not found!`);
+        if(game.phase !== Phase.SHERIFF_ELECTION) throw new Error(`Game ${game.gameId} is not in SHERIFF_ELECTION phase.`);
+        if(socketId !== game.players.find(p => p.playerUUID === game.managerUUID)?.socketId) throw new Error("Only GM can skip to day.");
+
+        game.phase = Phase.DAY;
+        game.players.forEach((p) => p.voteTargetUUID = null);
+        this.broadcastSyncState(gameId);
+        this.store.updateGame(game);
     }
 
     readyForNight(gameId: string, socketId: string) {

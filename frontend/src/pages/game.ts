@@ -9,6 +9,7 @@ import { socketService } from '../socket.service';
 import { RoleDistributionPhase } from './phases/role-distribution';
 import { NightPhase } from './phases/night';
 import { DayPhase } from './phases/day';
+import { SheriffElectionPhase } from './phases/sheriff-election';
 import { GameOverPhase } from './phases/game-over';
 import { ROLES, Role } from '@shared/roles.js';
 
@@ -110,8 +111,8 @@ export class GamePage extends View {
     private renderPhase(phase: Phase): void {
         if (!this.phaseContainer) return;
 
-        // Safety: Ensure Dark Mode if not in Day Phase
-        if (phase !== Phase.DAY) {
+        // Safety: Ensure Dark Mode if not in Day Phase or Sheriff Election
+        if (phase !== Phase.DAY && phase !== Phase.SHERIFF_ELECTION) {
             document.body.classList.remove('light-mode');
         }
 
@@ -132,6 +133,9 @@ export class GamePage extends View {
                 break;
             case Phase.NIGHT:
                 this.currentPhaseView = new NightPhase();
+                break;
+            case Phase.SHERIFF_ELECTION:
+                this.currentPhaseView = new SheriffElectionPhase();
                 break;
             case Phase.DAY:
                 this.currentPhaseView = new DayPhase();

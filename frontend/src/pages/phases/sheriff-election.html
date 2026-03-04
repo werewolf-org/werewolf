@@ -1,0 +1,70 @@
+<div class="sheriff-election-container">
+    <!-- STATE 1: VOTING -->
+    <div id="sheriff-voting-view">
+        <div class="pixel-card" style="border-color: var(--highlight);">
+            <h2 style="color: var(--highlight);">Sheriff Election</h2>
+            <p class="fog-text">The village needs a leader. Who shall be the Sheriff?</p>
+        </div>
+
+        <div class="pixel-card">
+            <h3>Nominate a Sheriff</h3>
+            <p class="fog-text">Select a player to lead the village...</p>
+        </div>
+
+        <div class="player-selection-list">
+            <ul id="sheriff-vote-list" class="pixel-list">
+                <!-- Players will be injected here -->
+            </ul>
+        </div>
+
+        <div id="sheriff-voting-controls" class="manager-controls">
+            <button id="confirm-sheriff-vote-btn" class="btn full-width" disabled style="background-color: var(--highlight); color: #000;">
+                Vote for Sheriff
+            </button>
+        </div>
+
+        <div id="sheriff-vote-confirmed-message" class="waiting-message" style="display: none;">
+            <p class="fog-text">Vote Cast. Waiting for others...</p>
+        </div>
+    </div>
+
+    <!-- STATE 2: RESULTS -->
+    <div id="sheriff-result-view" style="display: none;">
+        <div class="pixel-card" style="border-color: var(--highlight);">
+            <h2 style="color: var(--highlight);">Election Results</h2>
+            <p class="fog-text">The votes have been counted.</p>
+        </div>
+
+        <div class="pixel-card" style="text-align: center; border-color: var(--highlight);">
+            <h1 id="elected-sheriff-name" style="color: var(--highlight); font-size: 1.5rem;">...</h1>
+            <p id="sheriff-election-text" class="fog-text">has been elected as the new Sheriff!</p>
+            <p id="no-sheriff-text" class="highlight-text" style="display: none;">No one was elected due to a tie.</p>
+        </div>
+
+        <div class="pixel-card">
+            <h4>Election Breakdown</h4>
+            <ul id="sheriff-vote-breakdown" class="pixel-list" style="font-size: 0.9em;">
+                <!-- Vote breakdown injected here -->
+            </ul>
+        </div>
+
+        <div id="sheriff-accept-controls" class="manager-controls" style="display: none;">
+            <button id="accept-sheriff-btn" class="btn full-width" style="background-color: var(--highlight); color: #000;">
+                Accept Sheriff Badge 🎖️
+            </button>
+        </div>
+
+        <div id="gm-continue-controls" class="manager-controls" style="display: none;">
+            <button id="gm-continue-btn" class="btn btn-primary full-width">
+                Continue to Day
+            </button>
+        </div>
+
+        <div id="sheriff-waiting-message" class="waiting-message" style="display: none;">
+            <p class="fog-text">Waiting for the new Sheriff to accept the badge...</p>
+        </div>
+        <div id="no-sheriff-waiting-message" class="waiting-message" style="display: none;">
+            <p class="fog-text">Waiting for the Game Master to continue...</p>
+        </div>
+    </div>
+</div>

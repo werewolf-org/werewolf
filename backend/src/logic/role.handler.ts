@@ -26,10 +26,15 @@ export const nextRole = (game: Game) => {
         // Advance to the next role
         game.activeNightRole = nextActiveRole;
     } else {
-        // End of Night -> Start Day
+        // End of Night -> Start Day or Sheriff Election
         game.activeNightRole = null;
         game.lynchDone = false;
-        game.phase = Phase.DAY;
+        
+        if (game.round === 0) {
+            game.phase = Phase.SHERIFF_ELECTION;
+        } else {
+            game.phase = Phase.DAY;
+        }
 
         resolveNightActions(game);
 
