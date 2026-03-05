@@ -45,10 +45,7 @@ export class LobbyPhase extends View {
         // 4. Setup Action Listeners
         const startBtn = document.getElementById('start-game-btn');
         if (startBtn) {
-            startBtn.addEventListener('click', () => {
-                this.nameUnnamedPlayers();
-                socketService.closeJoining();
-            });
+            startBtn.addEventListener('click', () => socketService.closeJoining());
         }
     }
 
@@ -74,17 +71,9 @@ export class LobbyPhase extends View {
 
             nameInput.addEventListener('change', (e) => {
                 const newName = (e.target as HTMLInputElement).value.trim();
-                if (state.playerUUID) socketService.changeName(state.playerUUID, newName);
+                if (state.playerUUID) socketService.changeName(newName);
             });
         }
-    }
-
-    private nameUnnamedPlayers() {
-        const players = getState().players;
-        let i = 1;
-        players.forEach((player) => {
-            if(player.displayName === '') socketService.changeName(player.playerUUID, `Unnamed Player ${i++}`);
-        })
     }
 
     private async generateQRCode(url: string, container: HTMLElement) {

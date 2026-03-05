@@ -3,7 +3,7 @@ import { Server } from 'socket.io';
 import * as dotenv from 'dotenv';
 import { GameManager } from './logic/game.manager.js';
 import { socketService } from './socket.service.js';
-import { CupidHandler, RedLadyHandler, SeerHandler, WerewolfHandler, WitchHandler } from './logic/role.handler.js';
+import { CupidHandler, RedLadyHandler, SeerHandler, WerewolfHandler, WitchHandler } from './logic/handlers/role.handler.js';
 import { Role } from '@shared/roles.js';
 
 if (process.env.NODE_ENV !== "production") dotenv.config();
@@ -51,11 +51,11 @@ io.on('connection', (socket) => {
   
   socket.on('joinGame', handleErrors(({gameId, playerUUID}) => gameManager.joinGame(socket.id, gameId, playerUUID)));
 
-  socket.on('changeName', handleErrors(({gameId, playerUUID, playerName}) => gameManager.changeName(gameId, playerUUID, playerName)));
+  socket.on('changeName', handleErrors(({gameId, playerName}) => gameManager.changeName(gameId, socket.id, playerName)));
 
   socket.on('closeJoining', handleErrors(({gameId}) => gameManager.closeJoining(gameId)));
 
-  socket.on('startDistribution', handleErrors(({gameId, roles}) => gameManager.startDistribution(gameId, roles)));
+  socket.on('roleDistribution', handleErrors(({gameId, roles}) => gameManager.roleDistribution(gameId, roles)));
 
   socket.on('startGame', handleErrors(({gameId}) => gameManager.startGame(gameId)));
 
@@ -89,7 +89,6 @@ io.on('connection', (socket) => {
 
   // SHERIFF
   socket.on('acceptSheriffRole', handleErrors(({gameId}) => gameManager.acceptSheriffRole(gameId, socket.id)));
-  socket.on('gmContinueToDay', handleErrors(({gameId}) => gameManager.gmContinueToDay(gameId, socket.id)));
 
   // -----
   socket.on('disconnect', () => {

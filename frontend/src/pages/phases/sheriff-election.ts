@@ -59,7 +59,7 @@ export class SheriffElectionPhase extends View {
         const gmContinueBtn = document.getElementById('gm-continue-btn');
         if (gmContinueBtn) {
             gmContinueBtn.addEventListener('click', () => {
-                socketService.gmContinueToDay();
+                socketService.acceptSheriffRole();
             });
         }
     }

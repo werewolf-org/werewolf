@@ -87,7 +87,7 @@ export class RoleSelectionPhase extends View {
                 this.roles.forEach(r => {
                     if (r.count > 0) rolesMap[r.role] = r.count; // Use Enum Value as key
                 });
-                socketService.startDistribution(rolesMap);
+                socketService.roleDistribution(rolesMap);
             });
         }
     }

@@ -52,8 +52,8 @@ export class SocketService {
 
     // --- Game Specific Emitters (Domain Logic) ---
 
-    public syncState(socketId: string, localState: object) {
-        this.emitToPlayer(socketId, 'syncState', localState)
+    public syncState(socketId: string | null, localState: object) {
+        if(socketId) this.emitToPlayer(socketId, 'syncState', localState)
     }
 
     public notifyGameCreated(socketId: string, gameId: string) {
