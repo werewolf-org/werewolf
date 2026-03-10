@@ -82,6 +82,7 @@ io.on('connection', (socket) => {
   socket.on('witchConfirms', handleErrors(({gameId}) => gameManager.nightAction(gameId, socket.id, Role.WITCH, WitchHandler.handleConfirm)));
 
   // DAY
+  socket.on('nominate', handleErrors(({gameId, nominationUUID}) => gameManager.nominate(gameId, socket.id, nominationUUID)));
   socket.on('vote', handleErrors(({gameId, voteTargetUUID}) => gameManager.vote(gameId, socket.id, voteTargetUUID)));
 
   // after lynch: for players to go to night

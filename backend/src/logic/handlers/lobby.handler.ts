@@ -44,6 +44,7 @@ export const LobbyHander = {
         const newPlayer: Player = {
             displayName: '',
             role: null,
+            nominationUUID: null,
             voteTargetUUID: null,
             socketId: socketId,
             playerUUID: newPlayerUUID, 

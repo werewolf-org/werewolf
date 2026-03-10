@@ -136,6 +136,16 @@ export class GameManager {
         this.broadcastStateAndStore(game);
     }
 
+    nominate(gameId: any, socketId: string, nominationUUID: any): void | Promise<void> {
+        const game = this.getGameById(gameId);
+        const player = this.getPlayerBySocketId(game, socketId);
+        if(game.phase === Phase.DAY) VoteHandler.nominate(game, player, nominationUUID);
+        // TODO: also do for SHERIFF VOTING
+        else throw new Error(`Game with ID ${gameId} is not in Phase DAY, so nomination cannot happen right now`);
+        this.checkGameOver(game);
+        this.broadcastStateAndStore(game);
+    }
+
     acceptSheriffRole(gameId: string, socketId: string) {
         const game = this.getGameById(gameId);
         const player = this.getPlayerBySocketId(game, socketId);

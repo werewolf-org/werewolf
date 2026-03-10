@@ -16,6 +16,7 @@ export interface Player {
     usedHealingPotion: boolean,
     usedKillingPotion: boolean,
     // day
+    nominationUUID: string | false | null, // who they nominate
     voteTargetUUID: string | null, // who they vote for
     readyForNight: boolean
 }

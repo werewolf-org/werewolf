@@ -13,6 +13,24 @@ export const getVoteResult = (game: Game): Record<string, string | null> | null 
                 .map(p => [p.playerUUID, p.voteTargetUUID])
         );
 }
+export const isNominationsFinished = (game: Game): boolean => {
+    const alivePlayers = game.players.filter(p => p.isAlive);
+    return alivePlayers.every(p => p.nominationUUID !== null);
+}
+export const getNominations = (game: Game): Record<string, string> | null => {
+    return Object.fromEntries(
+        game.players
+            .filter(p => p.playerUUID !== null && p.nominationUUID)
+            .map(p => [p.playerUUID, p.nominationUUID])
+    )
+}
+export const getNominatedPlayers = (game: Game): string[] => {
+  return game.players.flatMap(p => 
+    (p.playerUUID !== null && typeof p.nominationUUID === 'string') 
+      ? [p.nominationUUID] 
+      : []
+  );
+}
 export const getVotingWinner = (game: Game): Player | null  => {
     const votes: Record<string, number> = {}
     const alivePlayers = game.players.filter((player) => player.isAlive)

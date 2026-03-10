@@ -1,6 +1,6 @@
 import { Phase } from "@shared/phases.js";
 import type { Game, Player } from "../../models.js";
-import { getVotingWinner, isVotingComplete } from "../selectors/vote.selectors.js";
+import { getNominatedPlayers, getVotingWinner, isNominationsFinished, isVotingComplete } from "../selectors/vote.selectors.js";
 import { getNextToWakeUp } from "../selectors/night.selectors.js";
 
 const resolveLynchVoting = (game: Game): void => {
@@ -14,16 +14,21 @@ const resolveLynchVoting = (game: Game): void => {
             lovePartner.isAlive = false;
         }
     }
+    lynchDone(game, electedPlayer?.playerUUID ?? null);
+}
+
+const lynchDone = (game: Game, lastVotedOutUUID: string | null): void => {
     game.lynchDone = true;
-    game.lastVotedOutUUID = electedPlayer?.playerUUID ?? null;
-    console.log(`Voting Resolved in Game ${game.gameId}. Player voted out: ${electedPlayer?.playerUUID}`)
+    game.lastVotedOutUUID = lastVotedOutUUID;
+    console.log(`Voting Resolved in Game ${game.gameId}. Player voted out: ${lastVotedOutUUID}`)
 }
 
 const startNight = (game: Game): void => {
     game.round = game.round + 1;
     game.phase = Phase.NIGHT;
     game.activeNightRole = getNextToWakeUp(game, true);
-    game.players.forEach((player) => player.voteTargetUUID = null);
+    game.players.forEach(p => p.voteTargetUUID = null);
+    game.players.forEach(p => p.nominationUUID = null);
     game.lynchDone = false;
     if(!game.activeNightRole) throw new Error(`Game with ID ${game.gameId} cannot go to Night, no first night role`)
     game.players.forEach((player) => player.readyForNight = false);
@@ -37,9 +42,21 @@ const resolveSheriffVoting = (game: Game): void  => {
 }
 
 export const VoteHandler = {
+    nominate(game: Game, player: Player, nominationUUID: string | false) {
+        if(player.nominationUUID !== null) throw new Error(`Player with playerUUID ${player.playerUUID} already has a nomination`);
+        const nominatedPlayers = getNominatedPlayers(game);
+        if(typeof nominationUUID === 'string' && nominatedPlayers.includes(nominationUUID)) throw new Error(`Player with playerUUID ${player.playerUUID} wants to nominate ${nominationUUID} but this player was already nominated`);
+        player.nominationUUID = nominationUUID;
+
+        // fallback: nobody is nominated
+        if(isNominationsFinished(game) && getNominatedPlayers(game).length === 0) lynchDone(game, null);
+    },
     castLynchVote(game: Game, player: Player, targetUUID: string): void {
         if(player.voteTargetUUID) throw new Error(`Player with playerUUID ${player.playerUUID} already voted`);
-        if(game.lynchDone) throw new Error(`Cannot vote in Game ${game.gameId} since lynch is already done!`);
+        if(game.lynchDone) throw new Error(`Cannot vote in Game ${game.gameId} since lynch is already done`);
+        const nominatedPlayers = getNominatedPlayers(game);
+        if(!isNominationsFinished(game)) throw Error(`Game with Id ${game.gameId} has not finished with nominations, so vote cannot be cast`);
+        if(!nominatedPlayers.includes(targetUUID)) throw new Error(`Player ${targetUUID} is not nominated, so voting for this player is not possible`)
 
         player.voteTargetUUID = targetUUID;
 

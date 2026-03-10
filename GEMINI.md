@@ -85,6 +85,7 @@ The game follows a strict phase sequence:
     - The village votes for a Sheriff.
     - Resolution requires the elected Sheriff to accept the badge or the GM to continue.
 6.  **DAY**: Discussion and Voting.
+    - Day consists of 3 stages: Nominations (discussion), Trial (voting on nominated players), and Results.
     - Voting logic is handled in `VoteHandler.castLynchVote`.
     - Lynch resolution triggers a return to **NIGHT**.
 7.  **GAME_OVER**: Win condition met.

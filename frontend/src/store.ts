@@ -8,6 +8,7 @@ export interface LocalPlayerModel {
     isAlive: boolean,
     isSheriff: boolean,
     role: Role | null,
+    nomination: string | false | null,
     lovePartner: string | null,
 }
 
@@ -35,6 +36,7 @@ export interface LocalAppState {
     winningTeam: string | null,
     
     // aggregated state (from game model)
+    nominationsFinished: boolean;
     voteResults: Record<string, string | null> | null;
     votedOutUUID: string | null;
 
@@ -78,6 +80,7 @@ const state: LocalAppState = {
     sheriffElectionDone: false,
     winningTeam: null,
 
+    nominationsFinished: false,
     voteResults: null,
     votedOutUUID: null,
     werewolfVotes: null,

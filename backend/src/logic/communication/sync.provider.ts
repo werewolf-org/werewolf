@@ -2,7 +2,7 @@ import { Role } from "@shared/roles.js";
 import type { Game, Player } from "../../models.js";
 import { Phase } from "@shared/phases.js";
 import { getWerewolfVictimUUID, getWerewolfVotes } from "../selectors/night.selectors.js";
-import { getVoteResult } from "../selectors/vote.selectors.js";
+import { getNominations, getVoteResult, isNominationsFinished } from "../selectors/vote.selectors.js";
 
 export const getLocalPlayerState = (game: Game, player: Player): object => {
     const socketId: string | null = player.socketId;
@@ -42,6 +42,7 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
         displayName: p.displayName,
         isSheriff: p.playerUUID === game.sheriffUUID,
         isAlive: p.isAlive,
+        nomination: p.nominationUUID,
         role: (game.phase === Phase.GAME_OVER || !p.isAlive) ? p.role : null
     }));
 
@@ -63,6 +64,7 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
         readyForNight: player.readyForNight,
         myVoteTargetUUID: player.voteTargetUUID,
 
+        nominationsFinished: isNominationsFinished(game),
         voteResults: getVoteResult(game),
         votedOutUUID: game.lastVotedOutUUID,
 

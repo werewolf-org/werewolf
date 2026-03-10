@@ -3,14 +3,63 @@
         margin-right: 4px;
         display: inline-block;
     }
+    .nomination-badge {
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: var(--accent-muted);
+        color: var(--text-main);
+        margin-left: 8px;
+    }
+    .no-nomination {
+        font-style: italic;
+        color: var(--text-muted);
+    }
 </style>
 
 <div class="day-container">
-    <!-- STATE 1: VOTING -->
-    <div id="day-voting-view">
+    <!-- PHASE 1: NOMINATIONS -->
+    <div id="day-nomination-view" style="display: none;">
         <div class="pixel-card day-header">
-            <h2 class="day-title">It's Day</h2>
-            <p class="fog-text">The village wakes up. Who is the Werewolf?</p>
+            <h2 class="day-title">Nominations</h2>
+            <p class="fog-text">The village discusses. Who should be put on trial?</p>
+            <div class="nomination-status-container" style="margin-top: 15px; text-align: center; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                <p id="nomination-progress" class="highlight-text" style="font-size: 1.2rem; margin-bottom: 0; text-shadow: none;">0/0 players have nominated</p>
+            </div>
+        </div>
+
+        <div class="pixel-card">
+            <h3>Trial List</h3>
+            <p class="fog-text">Players already nominated for lynch.</p>
+            <ul id="day-nominated-list" class="pixel-list">
+                <!-- Nominated players here -->
+            </ul>
+        </div>
+
+        <div class="pixel-card">
+            <h3>Available for Nomination</h3>
+            <p class="fog-text">Select a player to put on trial, or choose to skip.</p>
+            <ul id="day-available-list" class="pixel-list">
+                <!-- Available players here -->
+            </ul>
+        </div>
+
+        <div id="day-nomination-controls" class="manager-controls">
+            <button id="confirm-nomination-btn" class="btn btn-primary full-width" disabled>
+                Confirm Nomination
+            </button>
+        </div>
+
+        <div id="nomination-confirmed-message" class="waiting-message" style="display: none;">
+            <p class="fog-text">Nomination submitted. Waiting for others...</p>
+        </div>
+    </div>
+
+    <!-- PHASE 2: VOTING -->
+    <div id="day-voting-view" style="display: none;">
+        <div class="pixel-card day-header">
+            <h2 class="day-title">The Trial</h2>
+            <p class="fog-text">The following players have been nominated. Cast your final vote.</p>
         </div>
 
         <!-- Voting UI -->
@@ -21,7 +70,7 @@
 
         <div class="player-selection-list">
             <ul id="day-vote-list" class="pixel-list">
-                <!-- Players will be injected here -->
+                <!-- Nominated players will be injected here -->
             </ul>
         </div>
 
@@ -36,7 +85,7 @@
         </div>
     </div>
 
-    <!-- STATE 2: RESULTS -->
+    <!-- PHASE 3: RESULTS -->
     <div id="day-result-view" style="display: none;">
         <div class="pixel-card day-header">
             <h2 class="day-title">Judgment</h2>
