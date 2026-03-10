@@ -5,7 +5,7 @@ import { Phase } from "@shared/phases.js";
 import { NightHandler } from "./handlers/night.handler.js";
 import { VoteHandler } from "./handlers/vote.handler.js";
 import { socketService } from "../socket.service.js";
-import { syncPlayerState } from "./communication/sync.provider.js";
+import { getLocalPlayerState } from "./communication/sync.provider.js";
 import { checkPlayerNightRole } from "./selectors/night.selectors.js";
 import { LobbyHander } from "./handlers/lobby.handler.js";
 
@@ -26,7 +26,7 @@ export class GameManager {
 
     private broadcastStateAndStore(game: Game) {
         const playersWithSocket: Player[] = game.players.filter((player) => player.socketId);
-        playersWithSocket.forEach((player) => socketService.syncState(player.socketId, syncPlayerState(game, player)));
+        playersWithSocket.forEach((player) => socketService.syncState(player.socketId, getLocalPlayerState(game, player)));
         this.store.updateGame(game);
     }
 

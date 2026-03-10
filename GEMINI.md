@@ -33,22 +33,40 @@ The project follows a **Reactive State Machine** pattern. In this model, the Fro
 
 # Backend Architecture
 
-The backend is a pure **Node.js `http` + `socket.io`** application. **No Express is used.**
-No database is used; all games are stored in-memory.
+The backend is a pure **Node.js `http` + `socket.io`** application. No database is used; all games are stored in-memory in the `GameStore`.
 
-## Core Components (`backend/src/`)
+## Core Logic (`backend/src/logic/`)
 
-### 1. Communication & Sync (`socket.service.ts`)
-- **`syncState`**: The primary method for updating clients. It sends a partial `AppState` object tailored to the receiving player.
-- **`broadcastSyncState`**: Iterates through all players in a game and sends each their own tailored `syncState`. This is called whenever any game-wide change occurs (phase change, vote cast, etc.).
+### 1. Orchestration (`game.manager.ts`)
+The `GameManager` is the central entry point for all game traffic (called from `index.ts`). It manages the high-level workflow:
+- **State Management**: Fetches the `Game` from the store and ensures it is updated and broadcasted after every change via `broadcastStateAndStore()`.
+- **Traffic Control**: It identifies the player by their socket ID and delegates the specific business logic to specialized **Handlers**.
+- **Validation**: Uses **Selectors** to verify if a player is authorized to perform an action (e.g., checking if it's currently their night turn).
 
-### 2. Business Logic (`logic/`)
-- **`game.manager.ts`**: The central orchestrator. 
-    - Manages Game State (Lobby -> Setup -> Night -> Day).
-    - Handles player joins/rejoins. **Rejoining is handled by updating the player's socketId and sending a fresh `syncState`.**
-- **`role.handler.ts`**: Contains specific logic for each role. Actions here update the `Game` and `Player` objects, which are then synced to clients.
+### 2. State Mutation (`handlers/`)
+These modules contain the "Doers"—the only logic permitted to modify the `Game` and `Player` objects.
+- **`lobby.handler.ts`**: Manages the pre-game lifecycle (creation, joining, name changes) and the complex role distribution logic.
+- **`night.handler.ts`**: Controls the progression of night turns. It resolves all night actions (Werewolf kills, Witch potions, Red Lady visits) into a "morning report" of deaths and transitions the game to the next phase.
+- **`vote.handler.ts`**: Reusable logic for both Lynch and Sheriff election voting. It handles vote casting and resolves the outcome, including tie-breaking rules.
+- **`role.handler.ts`**: Contains the specific action logic for individual roles (e.g., Werewolf consensus, Seer reveals, Cupid's bond).
 
-### 3. Data Storage (`store/`)
+### 3. Derived State (`selectors/`)
+These modules contain the "Readers"—pure utility functions that calculate information from the `Game` object without ever modifying it.
+- **`night.selectors.ts`**: Logic to determine the Werewolves' target, find the next role to wake up based on `nightOrder`, and validate role turns.
+- **`vote.selectors.ts`**: Math-heavy logic to calculate vote counts, check for voting completion, and determine winners (handling the Sheriff's tie-breaking power).
+
+### 4. Communication & Sync (`communication/sync.provider.ts`)
+The `SyncProvider` is responsible for building the **Tailored Snapshots**. 
+- It aggregates the current game state and authorizations into a customized JSON patch for each specific player.
+- It ensures players only see what they are allowed to (e.g., a Villager doesn't see Werewolf votes).
+- **Exception**: When the phase is `GAME_OVER`, it reveals all roles and statuses for the summary screen.
+
+## Communication Flow
+1. **Socket Event**: `index.ts` receives a socket event and calls the relevant `GameManager` method.
+2. **Logic Execution**: `GameManager` fetches the game, validates the request via **Selectors**, and executes the change via a **Handler**.
+3. **State Sync**: `GameManager` invokes the `SyncProvider` to generate tailored snapshots for all players and broadcasts them via `socket.service.ts`.
+
+## Data Storage (`backend/src/store/`)
 - **`game.store.ts`**: Singleton in-memory database (`Map<string, Game>`).
 
 ## Data Models
@@ -63,10 +81,13 @@ The game follows a strict phase sequence:
 4.  **NIGHT**: A sequence of sub-turns (Seer -> Wolves -> Witch -> ...).
     - The `Game` object tracks `activeNightRole` to know whose turn it is.
     - `role.handler.ts` manages the transition between roles using `nextRole`.
-5.  **DAY**: Discussion and Voting.
-    - Voting logic is handled in `GameManager.vote`.
+5.  **SHERIFF_ELECTION**: Occurs after the first Night (Round 0).
+    - The village votes for a Sheriff.
+    - Resolution requires the elected Sheriff to accept the badge or the GM to continue.
+6.  **DAY**: Discussion and Voting.
+    - Voting logic is handled in `VoteHandler.castLynchVote`.
     - Lynch resolution triggers a return to **NIGHT**.
-6.  **GAME_OVER**: Win condition met.
+7.  **GAME_OVER**: Win condition met.
 
 # Frontend Architecture
 

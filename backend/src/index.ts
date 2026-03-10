@@ -87,7 +87,7 @@ io.on('connection', (socket) => {
   // after lynch: for players to go to night
   socket.on('readyForNight', handleErrors(({gameId}) => gameManager.readyForNight(gameId, socket.id)));
 
-  // SHERIFF
+  // after sheriff vote
   socket.on('acceptSheriffRole', handleErrors(({gameId}) => gameManager.acceptSheriffRole(gameId, socket.id)));
 
   // -----

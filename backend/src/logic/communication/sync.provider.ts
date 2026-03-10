@@ -4,7 +4,7 @@ import { Phase } from "@shared/phases.js";
 import { getWerewolfVictimUUID, getWerewolfVotes } from "../selectors/night.selectors.js";
 import { getVoteResult } from "../selectors/vote.selectors.js";
 
-export const syncPlayerState = (game: Game, player: Player) => {
+export const getLocalPlayerState = (game: Game, player: Player): object => {
     const socketId: string | null = player.socketId;
     if(!socketId) throw new Error(`Player ${player.playerUUID} in Game ${game.gameId} does not have a socketID (${player.socketId})`);
 
@@ -84,5 +84,4 @@ export const syncPlayerState = (game: Game, player: Player) => {
         cupidSecondLoverConfirmed: cupidSecondLoverConfirmed,
     }
     return localStatePatch
-    // socketService.syncState(socketId, localStatePatch);
 }
