@@ -4,10 +4,16 @@ import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
 
 export class WitchPhase extends View {
+    private initiallyUsedHeal = false;
+    private initiallyUsedKill = false;
 
     mount(container: HTMLElement): void {
         this.container = container;
         this.container.innerHTML = witchHtml;
+        
+        const state = getState();
+        this.initiallyUsedHeal = state.witchUsedHealingPotion;
+        this.initiallyUsedKill = state.witchUsedKillingPotion;
         
         // Reactive Subscriptions
         subscribeSelector(this, s => s.werewolfVictim, () => this.updateUI());
@@ -47,7 +53,10 @@ export class WitchPhase extends View {
         
         if (usedHeal) {
             if (healControls) healControls.style.display = 'none';
-            if (healUsedMsg) healUsedMsg.style.display = 'block';
+            if (healUsedMsg) {
+                healUsedMsg.style.display = 'block';
+                healUsedMsg.innerText = this.initiallyUsedHeal ? "Potion already used." : "Potion used tonight.";
+            }
         } else {
             if (healControls) healControls.style.display = 'flex';
             if (healUsedMsg) healUsedMsg.style.display = 'none';
@@ -61,7 +70,10 @@ export class WitchPhase extends View {
         
         if (usedKill) {
             if (killControls) killControls.style.display = 'none';
-            if (killUsedMsg) killUsedMsg.style.display = 'block';
+            if (killUsedMsg) {
+                killUsedMsg.style.display = 'block';
+                killUsedMsg.innerText = this.initiallyUsedKill ? "Potion already used." : "Potion used tonight.";
+            }
             if (killSelection) killSelection.style.display = 'none';
         } else {
             if (killControls) killControls.style.display = 'flex';
