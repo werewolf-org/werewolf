@@ -25,6 +25,16 @@ export class GameStore {
         this.games.delete(gameId);
     }
 
+    cleanupOldGames(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
+        const now = Date.now();
+        for (const [gameId, game] of this.games.entries()) {
+            if (now - game.createdAt > maxAgeMs) {
+                console.log(`Cleaning up old game: ${gameId}`);
+                this.games.delete(gameId);
+            }
+        }
+    }
+
     clear(): void {
         this.games.clear();
     }

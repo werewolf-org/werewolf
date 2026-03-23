@@ -58,6 +58,7 @@ export class GameManager {
     }
 
     createGame(socketId: string): void {
+        this.store.cleanupOldGames(); // clean up inactive games (default 24h)
         const newGame = LobbyHander.createGame();
         socketService.notifyGameCreated(socketId, newGame.gameId);
         this.store.createGame(newGame);

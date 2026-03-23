@@ -33,6 +33,7 @@ export const LobbyHander = {
             lynchDone: false,
             lastVotedOutUUID: null,
             winningTeam: "",
+            createdAt: Date.now(),
         }
         return newGame;
     },

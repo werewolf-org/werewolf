@@ -34,6 +34,7 @@ export interface Game {
     lynchDone: boolean,
     sheriffElectionDone: boolean,
     lastVotedOutUUID: string | null,
+    createdAt: number,
 }
 
 export interface NightAction {
