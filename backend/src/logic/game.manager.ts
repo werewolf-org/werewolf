@@ -67,8 +67,11 @@ export class GameManager {
 
     joinGame(socketId: string, gameId: string, playerUUID: string): void {
         const game = this.getGameById(gameId);
+        
+        const playerExists = game.players.some(p => p.playerUUID === playerUUID);
+        const allowRejoinInLobby = process.env.NODE_ENV === 'production';
 
-        if(game.phase === Phase.LOBBY) {
+        if(game.phase === Phase.LOBBY && (!allowRejoinInLobby || !playerExists)) {
             // JOIN game (in Lobby Phase)
             playerUUID = LobbyHander.createNewPlayer(game, socketId);
             socketService.notifyPlayerJoined(socketId, {
