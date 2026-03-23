@@ -17,9 +17,17 @@ export class StartPage extends View {
     this.container.innerHTML = startHtml;
 
     this.createBtn = document.getElementById("create-game") as HTMLButtonElement;
+    const sourceCodeBtn = document.getElementById("source-code") as HTMLButtonElement;
+    const buyCoffeeBtn = document.getElementById("buy-coffee") as HTMLButtonElement;
 
     if (this.createBtn) {
       this.createBtn.addEventListener("click", this.handleCreateGame);
+    }
+    if (sourceCodeBtn) {
+      sourceCodeBtn.addEventListener("click", () => window.open("https://github.com/werewolf-org/werewolf", "_blank"));
+    }
+    if (buyCoffeeBtn) {
+      buyCoffeeBtn.addEventListener("click", () => window.open("https://buymeacoffee.com/benhauptvogel", "_blank"));
     }
   }
 
