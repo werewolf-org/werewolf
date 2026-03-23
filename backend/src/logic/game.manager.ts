@@ -58,6 +58,7 @@ export class GameManager {
     }
 
     createGame(socketId: string): void {
+        this.store.cleanupOldGames(); // clean up inactive games (default 24h)
         const newGame = LobbyHander.createGame();
         socketService.notifyGameCreated(socketId, newGame.gameId);
         this.store.createGame(newGame);
@@ -67,8 +68,11 @@ export class GameManager {
 
     joinGame(socketId: string, gameId: string, playerUUID: string): void {
         const game = this.getGameById(gameId);
+        
+        const playerExists = game.players.some(p => p.playerUUID === playerUUID);
+        const allowRejoinInLobby = process.env.NODE_ENV === 'production';
 
-        if(game.phase === Phase.LOBBY) {
+        if(game.phase === Phase.LOBBY && (!allowRejoinInLobby || !playerExists)) {
             // JOIN game (in Lobby Phase)
             playerUUID = LobbyHander.createNewPlayer(game, socketId);
             socketService.notifyPlayerJoined(socketId, {

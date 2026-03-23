@@ -162,6 +162,24 @@ h1, h2, h3 {
     color: #fff;
 }
 
+.link-btn {
+    display: inline-block;
+    color: var(--text-muted);
+    font-family: 'VT323', monospace;
+    font-size: 1.2rem;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: underline;
+    background: none;
+    border: none;
+    padding: var(--spacing-sm);
+    transition: color 0.2s, background-color 1s ease;
+}
+
+.link-btn:hover {
+    color: var(--highlight);
+}
+
 .btn:disabled,
 .btn.disabled {
     background-color: #999;
