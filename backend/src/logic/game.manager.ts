@@ -37,6 +37,7 @@ export class GameManager {
         if(alivePlayers.length === 0) { // no more players alive
             game.phase = Phase.GAME_OVER;
             game.winningTeam = null;
+            return;
         }
         // OPTION 1: only werewolves are alive
         const isWerewolf = (player: Player) => player.role == Role.WEREWOLF;

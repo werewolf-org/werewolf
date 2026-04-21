@@ -57,6 +57,10 @@ export class GameOverPhase extends View {
             winningTeamText.classList.add('winner-couple');
             audioService.playNarration('lovers_won', 'overwrite');
             audioService.setAtmosphere('Amor');
+        } else if (state.winningTeam === null) {
+            document.body.classList.add('light-mode');
+            winnerName = "No one wins!";
+            audioService.setAtmosphere('Village-Won');
         }
         winningTeamText.innerText = winnerName;
 
