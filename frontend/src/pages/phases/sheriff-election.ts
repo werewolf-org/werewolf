@@ -5,7 +5,7 @@ import { socketService } from '../../socket.service';
 import { audioService } from '../../audio.service';
 
 export class SheriffElectionPhase extends View {
-    private selectedTargetUUID: string | null = null;
+    private selectedTargetUUID: string | false | null = null;
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -44,9 +44,16 @@ export class SheriffElectionPhase extends View {
         const confirmBtn = document.getElementById('confirm-sheriff-vote-btn');
         if (confirmBtn) {
             confirmBtn.addEventListener('click', () => {
-                if (this.selectedTargetUUID) {
+                if (this.selectedTargetUUID !== null) {
                     socketService.vote(this.selectedTargetUUID);
                 }
+            });
+        }
+
+        const abstainBtn = document.getElementById('abstain-sheriff-vote-btn');
+        if (abstainBtn) {
+            abstainBtn.addEventListener('click', () => {
+                socketService.vote(false);
             });
         }
 
@@ -85,7 +92,7 @@ export class SheriffElectionPhase extends View {
         const state = getState();
         const me = state.players.find(p => p.playerUUID === state.playerUUID);
         const isDead = me && !me.isAlive;
-        const hasVoted = !!state.myVoteTargetUUID;
+        const hasVoted = state.myVoteTargetUUID !== null;
 
         const controls = document.getElementById('sheriff-voting-controls');
         const waitingMsg = document.getElementById('sheriff-vote-confirmed-message');
@@ -164,6 +171,7 @@ export class SheriffElectionPhase extends View {
     private renderPlayerList(listEl: HTMLElement) {
         const state = getState();
         const players = state.players.filter(p => p.isAlive);
+        const abstainSelected = this.selectedTargetUUID === false || state.myVoteTargetUUID === false;
         
         listEl.innerHTML = players.map(p => {
             const isMe = p.playerUUID === state.playerUUID;
@@ -176,17 +184,23 @@ export class SheriffElectionPhase extends View {
                     </span>
                 </li>
             `;
-        }).join('');
+        }).join('') + `
+            <li class="pixel-list-item selectable-player ${abstainSelected ? 'selected' : ''}" data-uuid="false" style="margin-top: 10px; border-top: 1px dashed var(--border-main);">
+                <span class="player-dot" style="background: var(--text-muted)"></span>
+                <span class="player-name">Abstain from Vote</span>
+            </li>
+        `;
 
         const items = listEl.querySelectorAll('.selectable-player');
         items.forEach(item => {
             item.addEventListener('click', () => {
                 const me = getState().players.find(p => p.playerUUID === getState().playerUUID);
-                if (getState().myVoteTargetUUID || !me?.isAlive) return;
+                if (getState().myVoteTargetUUID !== null || !me?.isAlive) return;
 
                 items.forEach(i => i.classList.remove('selected'));
                 item.classList.add('selected');
-                this.selectedTargetUUID = item.getAttribute('data-uuid');
+                const uuid = item.getAttribute('data-uuid');
+                this.selectedTargetUUID = uuid === 'false' ? false : uuid;
                 
                 const confirmBtn = document.getElementById('confirm-sheriff-vote-btn') as HTMLButtonElement;
                 if (confirmBtn) confirmBtn.disabled = false;

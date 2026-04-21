@@ -131,7 +131,7 @@ export class GameManager {
     }
     
     // both for sheriff election and lynch voting
-    vote(gameId: string, socketId: string, targetUUID: string): void {
+    vote(gameId: string, socketId: string, targetUUID: string | false): void {
         const game = this.getGameById(gameId);
         const player = this.getPlayerBySocketId(game, socketId);
         if(game.phase === Phase.DAY) VoteHandler.castLynchVote(game, player, targetUUID);

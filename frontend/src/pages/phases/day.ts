@@ -6,7 +6,7 @@ import { audioService } from '../../audio.service';
 
 export class DayPhase extends View {
     private selectedNominationUUID: string | false | null = null;
-    private selectedTargetUUID: string | null = null;
+    private selectedTargetUUID: string | false | null = null;
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -57,9 +57,16 @@ export class DayPhase extends View {
         const confirmVoteBtn = document.getElementById('confirm-vote-btn');
         if (confirmVoteBtn) {
             confirmVoteBtn.addEventListener('click', () => {
-                if (this.selectedTargetUUID) {
+                if (this.selectedTargetUUID !== null) {
                     socketService.vote(this.selectedTargetUUID);
                 }
+            });
+        }
+
+        const abstainBtn = document.getElementById('abstain-vote-btn');
+        if (abstainBtn) {
+            abstainBtn.addEventListener('click', () => {
+                socketService.vote(false);
             });
         }
 
@@ -225,7 +232,7 @@ export class DayPhase extends View {
         const state = getState();
         const me = state.players.find(p => p.playerUUID === state.playerUUID);
         const isDead = me && !me.isAlive;
-        const hasVoted = !!state.myVoteTargetUUID;
+        const hasVoted = state.myVoteTargetUUID !== null;
 
         const controls = document.getElementById('day-voting-controls');
         const waitingMsg = document.getElementById('vote-confirmed-message');
@@ -283,6 +290,8 @@ export class DayPhase extends View {
             return;
         }
 
+        const abstainSelected = this.selectedTargetUUID === false || state.myVoteTargetUUID === false;
+
         listEl.innerHTML = nominatedPlayers.map(p => {
             const isMe = p.playerUUID === state.playerUUID;
             const isSelected = this.selectedTargetUUID === p.playerUUID || state.myVoteTargetUUID === p.playerUUID;
@@ -299,17 +308,23 @@ export class DayPhase extends View {
                     </div>
                 </li>
             `;
-        }).join('');
+        }).join('') + `
+            <li class="pixel-list-item selectable-player voting-item ${abstainSelected ? 'selected' : ''}" data-uuid="false" style="margin-top: 10px; border-top: 1px dashed var(--border-main);">
+                <span class="player-dot" style="background: var(--text-muted)"></span>
+                <span class="player-name">Abstain from Vote</span>
+            </li>
+        `;
 
         const items = listEl.querySelectorAll('.voting-item');
         items.forEach(item => {
             item.addEventListener('click', () => {
                 const me = getState().players.find(p => p.playerUUID === getState().playerUUID);
-                if (getState().myVoteTargetUUID || !me?.isAlive) return;
+                if (getState().myVoteTargetUUID !== null || !me?.isAlive) return;
 
                 items.forEach(i => i.classList.remove('selected'));
                 item.classList.add('selected');
-                this.selectedTargetUUID = item.getAttribute('data-uuid');
+                const uuid = item.getAttribute('data-uuid');
+                this.selectedTargetUUID = uuid === 'false' ? false : uuid;
                 
                 const confirmBtn = document.getElementById('confirm-vote-btn') as HTMLButtonElement;
                 if (confirmBtn) confirmBtn.disabled = false;

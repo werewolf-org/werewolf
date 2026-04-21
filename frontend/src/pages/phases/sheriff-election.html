@@ -8,7 +8,7 @@
 
         <div class="pixel-card">
             <h3>Nominate a Sheriff</h3>
-            <p class="fog-text">Select a player to lead the village...</p>
+            <p class="fog-text">Select a player to lead the village, or abstain...</p>
             <div class="nomination-status-container" style="margin-top: 15px; text-align: center; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 8px;">
                 <p id="sheriff-vote-progress" class="highlight-text" style="font-size: 1.2rem; margin-bottom: 0; text-shadow: none;">0/0 players have voted</p>
             </div>
@@ -20,9 +20,12 @@
             </ul>
         </div>
 
-        <div id="sheriff-voting-controls" class="manager-controls">
+        <div id="sheriff-voting-controls" class="manager-controls" style="display: flex; gap: 10px;">
             <button id="confirm-sheriff-vote-btn" class="btn full-width" disabled style="background-color: var(--highlight); color: #000;">
                 Vote for Sheriff
+            </button>
+            <button id="abstain-sheriff-vote-btn" class="btn btn-secondary full-width">
+                Abstain
             </button>
         </div>
 

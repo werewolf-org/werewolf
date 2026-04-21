@@ -69,7 +69,7 @@ class SocketService {
         this.socket?.emit('nominate', { gameId, nominationUUID });
     }
 
-    public vote(voteTargetUUID: string) {
+    public vote(voteTargetUUID: string | false) {
         const gameId = getState().gameId;
         this.socket?.emit('vote', { gameId, voteTargetUUID });
     }

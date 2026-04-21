@@ -5,7 +5,7 @@ export const isVotingComplete = (game: Game): boolean => {
     return alivePlayers.every(p => p.voteTargetUUID !== null);
 }
 
-export const getVoteResult = (game: Game): Record<string, string | null> | null => {
+export const getVoteResult = (game: Game): Record<string, string | false | null> | null => {
     if(!isVotingComplete(game)) return null;
     return Object.fromEntries(
             game.players
