@@ -183,7 +183,7 @@ describe("vote.selectors", () => {
       game.players[0].voteTargetUUID = false;
       game.players[1].voteTargetUUID = false;
       game.players[2].voteTargetUUID = false;
-      expect(() => getVotingWinner(game)).toThrow("No votes present");
+      expect(getVotingWinner(game)).toBeNull();
     });
 
     it("breaks tie with sheriff's vote if sheriff voted for one of the tied", () => {

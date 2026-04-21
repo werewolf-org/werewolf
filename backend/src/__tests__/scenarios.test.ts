@@ -404,13 +404,14 @@ describe("elaborate game scenarios", () => {
       NightHandler.nextRole(game);
       expect(game.phase).toBe(Phase.DAY);
 
-      // Sheriff election: all abstain — currently throws "No votes present"
-      expect(() => {
-        VoteHandler.castSheriffVote(game, game.players[0], false);
-        VoteHandler.castSheriffVote(game, game.players[1], false);
-        VoteHandler.castSheriffVote(game, game.players[2], false);
-        VoteHandler.castSheriffVote(game, game.players[3], false); // triggers, throws
-      }).toThrow("No votes present");
+      // Sheriff election: all abstain — no votes present, no sheriff elected
+      VoteHandler.castSheriffVote(game, game.players[0], false);
+      VoteHandler.castSheriffVote(game, game.players[1], false);
+      VoteHandler.castSheriffVote(game, game.players[2], false);
+      VoteHandler.castSheriffVote(game, game.players[3], false); // triggers
+
+      expect(game.sheriffElectionDone).toBe(true);
+      expect(game.sheriffUUID).toBeNull();
     });
 
     /* ================================================================

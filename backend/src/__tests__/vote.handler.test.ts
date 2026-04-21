@@ -188,11 +188,16 @@ describe("vote.handler", () => {
       expect(game.sheriffUUID).toBe("p1");
     });
 
-    it("does not resolve when not all voted", () => {
-      const game = createGameWithPlayers(3);
+    it("resolves sheriff election with abstain-only votes to no sheriff", () => {
+      const game = createGameWithPlayers(4);
       game.phase = Phase.SHERIFF_ELECTION;
-      VoteHandler.castSheriffVote(game, game.players[0], "p1");
-      expect(game.sheriffElectionDone).toBe(false);
+      VoteHandler.castSheriffVote(game, game.players[0], false);
+      VoteHandler.castSheriffVote(game, game.players[1], false);
+      VoteHandler.castSheriffVote(game, game.players[2], false);
+      VoteHandler.castSheriffVote(game, game.players[3], false); // triggers
+
+      expect(game.sheriffElectionDone).toBe(true);
+      expect(game.sheriffUUID).toBeNull();
     });
 
     it("throws when player already voted", () => {

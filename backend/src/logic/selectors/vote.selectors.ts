@@ -39,7 +39,7 @@ export const getVotingWinner = (game: Game): Player | null  => {
         if(player.voteTargetUUID) votes[player.voteTargetUUID] = (votes[player.voteTargetUUID] ?? 0) + 1;
     }
     const entries = Object.entries(votes);
-    if (entries.length === 0) throw new Error("No votes present");
+    if (entries.length === 0) return null;
 
     const maxCount = Math.max(...Object.entries(votes).map(([, count]) => count));
     const electedPlayers = entries
