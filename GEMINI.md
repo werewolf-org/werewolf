@@ -69,6 +69,37 @@ The `SyncProvider` is responsible for building the **Tailored Snapshots**.
 ## Data Storage (`backend/src/store/`)
 - **`game.store.ts`**: Singleton in-memory database (`Map<string, Game>`).
 
+## Tests (`backend/src/__tests__/`)
+The backend has comprehensive unit tests for all core logic, written with **Vitest**. Test files are in `backend/src/__tests__/`. When writing new code, please make sure to add test functions.
+
+### Running Tests
+```bash
+cd backend
+npm test         # Run all tests once
+npx vitest       # Run in watch mode
+npx vitest run src/__tests__/vote.selectors.test.ts  # Single file
+```
+
+### Test Coverage
+| File | Tests | Coverage |
+|---|---|---|
+| `vote.selectors.test.ts` | 26 | `isVotingComplete`, `getVoteResult`, `getNominations`, `getNominatedPlayers`, `getVotingWinner` (ties, abstains, sheriff tie-breaker) |
+| `night.selectors.test.ts` | 26 | `getWerewolfVotes`, `getWerewolfVictimUUID`, `getNextToWakeUp`, `checkPlayerNightRole` |
+| `vote.handler.test.ts` | 34 | `nominate`, `castLynchVote`, `castSheriffVote`, `readyForNight`, `acceptSheriffRole` (auto-resolution, love partner chain deaths) |
+| `lobby.handler.test.ts` | 21 | `createGame`, `createNewPlayer`, `roleDistribution`, `startGame`, `closeJoining`, `changeName` |
+| `night.handler.test.ts` | 8 | `nextRole`, night resolution logic (witch heal, witch kill, lover chain, split votes, red lady) |
+| `role.handler.test.ts` | 28 | Werewolf, Seer, Cupid, Witch, RedLady handlers |
+| `game.store.test.ts` | 8 | `GameStore` singleton, CRUD, `cleanupOldGames` |
+| `sync.provider.test.ts` | 22 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info |
+| `scenarios.test.ts` | 20 | **Full game simulations**: multi-round games, couple wins, all-abstain, witch dual potion, sheriff tie-breaker, red lady death, dead-lock scenarios |
+
+### Test Helpers
+`test-helpers.ts` provides mock factories:
+- `createMockGame(overrides)`
+- `createMockPlayer(overrides)`
+- `createGameWithPlayers(count)`
+- `setRoles(game, roles[])`
+
 ## Data Models
 - **Enums:** String Enums are used for `Role` (e.g., `"WEREWOLF"`) and `Phase` (e.g., `"NIGHT"`) for better logging and serialization.
 - **Player State:** Role-specific attributes (like `usedHealingPotion` or `lovePartner`) are stored in `Player` objects to persist across rounds and enable rejoining.
