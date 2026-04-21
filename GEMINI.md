@@ -62,9 +62,19 @@ The `SyncProvider` is responsible for building the **Tailored Snapshots**.
 - **Exception**: When the phase is `GAME_OVER`, it reveals all roles and statuses for the summary screen.
 
 ## Communication Flow
-1. **Socket Event**: `index.ts` receives a socket event and calls the relevant `GameManager` method.
+1. **Socket Event**: `index.ts` initializes the Socket.IO server and delegates event registration to `socket.routes.ts`. `socket.routes.ts` receives socket events and calls the relevant `GameManager` method.
 2. **Logic Execution**: `GameManager` fetches the game, validates the request via **Selectors**, and executes the change via a **Handler**.
 3. **State Sync**: `GameManager` invokes the `SyncProvider` to generate tailored snapshots for all players and broadcasts them via `socket.service.ts`.
+
+## Socket Routing (`backend/src/socket.routes.ts`)
+All Socket.IO event handlers are registered in a dedicated `socket.routes.ts` file. This separation keeps `index.ts` clean and purely infrastructural (HTTP server + Socket.IO setup).
+
+Events handled include:
+- **Lobby**: `createGame`, `joinGame`, `changeName`, `closeJoining`, `roleDistribution`, `startGame`
+- **Night Roles**: `werewolfVote`, `sleepover` (Red Lady), `revealRole` / `seerConfirmed` (Seer), `bindLovers` / `confirmLoverBond` (Cupid), `usePotion` / `witchConfirms` (Witch)
+- **Day Actions**: `nominate`, `vote`, `readyForNight`
+- **Sheriff Election**: `acceptSheriffRole`
+- **Lifecycle**: `disconnect`
 
 ## Data Storage (`backend/src/store/`)
 - **`game.store.ts`**: Singleton in-memory database (`Map<string, Game>`).
