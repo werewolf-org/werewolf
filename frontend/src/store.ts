@@ -38,6 +38,7 @@ export interface LocalAppState {
     // aggregated state (from game model)
     nominationsFinished: boolean;
     voteResults: Record<string, string | null> | null;
+    voteProgress: { voted: number; total: number } | null;
     votedOutUUID: string | null;
 
     werewolfVotes: Record<string, string> | null;
@@ -82,6 +83,7 @@ const state: LocalAppState = {
 
     nominationsFinished: false,
     voteResults: null,
+    voteProgress: null,
     votedOutUUID: null,
     werewolfVotes: null,
     werewolfVictim: null,
@@ -155,6 +157,7 @@ export function resetState(): void {
         sheriffElectionDone: false,
 
         voteResults: null,
+        voteProgress: null,
         votedOutUUID: null,
         werewolfVotes: null,
         werewolfVictim: null,

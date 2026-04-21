@@ -35,6 +35,7 @@ export class DayPhase extends View {
         });
         subscribeSelector(this, s => s.myVoteTargetUUID, () => this.updateUI());
         subscribeSelector(this, s => s.readyForNight, () => this.updateUI());
+        subscribeSelector(this, s => s.voteProgress, () => this.updateUI());
         subscribeSelector(this, s => s.players, () => this.updateUI());
 
         this.setupEventListeners();
@@ -229,6 +230,11 @@ export class DayPhase extends View {
         const controls = document.getElementById('day-voting-controls');
         const waitingMsg = document.getElementById('vote-confirmed-message');
         const listEl = document.getElementById('day-vote-list');
+        const progressEl = document.getElementById('vote-progress');
+
+        if (progressEl && state.voteProgress) {
+            progressEl.innerText = `${state.voteProgress.voted}/${state.voteProgress.total} players have voted`;
+        }
 
         if (isDead) {
             if (controls) controls.style.display = 'none';

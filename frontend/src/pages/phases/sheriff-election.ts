@@ -31,6 +31,7 @@ export class SheriffElectionPhase extends View {
             this.updateUI();
         });
         subscribeSelector(this, s => s.myVoteTargetUUID, () => this.updateUI());
+        subscribeSelector(this, s => s.voteProgress, () => this.updateUI());
         subscribeSelector(this, s => s.players, () => this.updateUI());
 
         this.setupEventListeners();
@@ -89,6 +90,11 @@ export class SheriffElectionPhase extends View {
         const controls = document.getElementById('sheriff-voting-controls');
         const waitingMsg = document.getElementById('sheriff-vote-confirmed-message');
         const listEl = document.getElementById('sheriff-vote-list');
+        const progressEl = document.getElementById('sheriff-vote-progress');
+
+        if (progressEl && state.voteProgress) {
+            progressEl.innerText = `${state.voteProgress.voted}/${state.voteProgress.total} players have voted`;
+        }
 
         if (isDead) {
             if (controls) controls.style.display = 'none';
