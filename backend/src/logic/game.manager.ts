@@ -149,9 +149,8 @@ export class GameManager {
         const game = this.getGameById(gameId);
         const player = this.getPlayerBySocketId(game, socketId);
         if(!player.isAlive) return;
-        // Nominations are only valid during DAY phase (lynch voting), not during SHERIFF_ELECTION
-        if(game.phase === Phase.DAY) VoteHandler.nominate(game, player, nominationUUID);
-        else throw new Error(`Game with ID ${gameId} is not in Phase DAY, so nomination cannot happen right now`);
+        if(game.phase === Phase.DAY || game.phase === Phase.SHERIFF_ELECTION) VoteHandler.nominate(game, player, nominationUUID);
+        else throw new Error(`Game with ID ${gameId} is not in Phase DAY or SHERIFF_ELECTION, so nomination cannot happen right now`);
         this.checkGameOver(game);
         this.broadcastStateAndStore(game);
     }

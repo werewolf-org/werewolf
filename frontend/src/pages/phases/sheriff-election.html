@@ -1,14 +1,38 @@
 <div class="sheriff-election-container">
-    <!-- STATE 1: VOTING -->
-    <div id="sheriff-voting-view">
+    <!-- STATE 1: NOMINATION -->
+    <div id="sheriff-nomination-view">
         <div class="pixel-card" style="border-color: var(--highlight);">
             <h2 style="color: var(--highlight);">Sheriff Election</h2>
-            <p class="fog-text">The village needs a leader. Who shall be the Sheriff?</p>
+            <p class="fog-text">Nominate a player to be sheriff. If no one is nominated, no sheriff will be elected.</p>
         </div>
 
         <div class="pixel-card">
-            <h3>Nominate a Sheriff</h3>
-            <p class="fog-text">Select a player to lead the village, or abstain...</p>
+            <h3>Nomination</h3>
+            <p class="fog-text">Select a player you want to nominate for sheriff...</p>
+        </div>
+
+        <div class="player-selection-list">
+            <ul id="sheriff-nomination-list" class="pixel-list">
+                <!-- Players will be injected here -->
+            </ul>
+        </div>
+
+        <div id="sheriff-nomination-controls" class="manager-controls">
+            <button id="confirm-sheriff-nomination-btn" class="btn full-width" disabled style="background-color: var(--highlight); color: #000;">
+                Nominate
+            </button>
+        </div>
+
+        <div id="sheriff-nomination-confirmed-message" class="waiting-message" style="display: none;">
+            <p class="fog-text">Nomination Cast. Waiting for others...</p>
+        </div>
+    </div>
+
+    <!-- STATE 2: VOTING -->
+    <div id="sheriff-voting-view" style="display: none;">
+        <div class="pixel-card" style="border-color: var(--highlight);">
+            <h2 style="color: var(--highlight);">Sheriff Election</h2>
+            <p class="fog-text">Vote for one of the nominated players.</p>
             <div class="nomination-status-container" style="margin-top: 15px; text-align: center; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 8px;">
                 <p id="sheriff-vote-progress" class="highlight-text" style="font-size: 1.2rem; margin-bottom: 0; text-shadow: none;">0/0 players have voted</p>
             </div>
@@ -16,16 +40,13 @@
 
         <div class="player-selection-list">
             <ul id="sheriff-vote-list" class="pixel-list">
-                <!-- Players will be injected here -->
+                <!-- Nominated players will be injected here -->
             </ul>
         </div>
 
-        <div id="sheriff-voting-controls" class="manager-controls" style="display: flex; gap: 10px;">
+        <div id="sheriff-voting-controls" class="manager-controls">
             <button id="confirm-sheriff-vote-btn" class="btn full-width" disabled style="background-color: var(--highlight); color: #000;">
-                Vote for Sheriff
-            </button>
-            <button id="abstain-sheriff-vote-btn" class="btn btn-secondary full-width">
-                Abstain
+                Confirm Vote
             </button>
         </div>
 
@@ -34,7 +55,7 @@
         </div>
     </div>
 
-    <!-- STATE 2: RESULTS -->
+    <!-- STATE 3: RESULTS -->
     <div id="sheriff-result-view" style="display: none;">
         <div class="pixel-card" style="border-color: var(--highlight);">
             <h2 style="color: var(--highlight);">Election Results</h2>
@@ -44,7 +65,7 @@
         <div class="pixel-card" style="text-align: center; border-color: var(--highlight);">
             <h1 id="elected-sheriff-name" style="color: var(--highlight); font-size: 1.5rem;">...</h1>
             <p id="sheriff-election-text" class="fog-text">has been elected as the new Sheriff!</p>
-            <p id="no-sheriff-text" class="highlight-text" style="display: none;">No one was elected due to a tie.</p>
+            <p id="no-sheriff-text" class="highlight-text" style="display: none;">No one was elected due to a tie or abstention.</p>
         </div>
 
         <div class="pixel-card">

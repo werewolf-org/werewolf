@@ -73,7 +73,7 @@ Events handled include:
 - **Lobby**: `createGame`, `joinGame`, `changeName`, `closeJoining`, `roleDistribution`, `startGame`
 - **Night Roles**: `werewolfVote`, `sleepover` (Red Lady), `revealRole` / `seerConfirmed` (Seer), `bindLovers` / `confirmLoverBond` (Cupid), `usePotion` / `witchConfirms` (Witch)
 - **Day Actions**: `nominate`, `vote`, `readyForNight`
-- **Sheriff Election**: `acceptSheriffRole`
+- **Sheriff Election**: `nominate`, `vote`, `acceptSheriffRole`
 - **Lifecycle**: `disconnect`
 
 ## Data Storage (`backend/src/store/`)

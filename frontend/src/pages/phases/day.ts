@@ -63,13 +63,6 @@ export class DayPhase extends View {
             });
         }
 
-        const abstainBtn = document.getElementById('abstain-vote-btn');
-        if (abstainBtn) {
-            abstainBtn.addEventListener('click', () => {
-                socketService.vote(false);
-            });
-        }
-
         const readyBtn = document.getElementById('ready-for-night-btn');
         if (readyBtn) {
             readyBtn.addEventListener('click', () => {

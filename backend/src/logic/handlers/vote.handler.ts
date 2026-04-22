@@ -49,7 +49,13 @@ export const VoteHandler = {
         player.nominationUUID = nominationUUID;
 
         // fallback: nobody is nominated
-        if(isNominationsFinished(game) && getNominatedPlayers(game).length === 0) lynchDone(game, null);
+        if(isNominationsFinished(game) && getNominatedPlayers(game).length === 0) {
+            if(game.phase === Phase.DAY) lynchDone(game, null);
+            else if(game.phase === Phase.SHERIFF_ELECTION) {
+                game.sheriffUUID = null;
+                game.sheriffElectionDone = true;
+            }
+        }
     },
     castLynchVote(game: Game, player: Player, targetUUID: string | false): void {
         if(player.voteTargetUUID !== null) throw new Error(`Player with playerUUID ${player.playerUUID} already voted`);
@@ -65,7 +71,10 @@ export const VoteHandler = {
     },
     castSheriffVote(game: Game, player: Player, targetUUID: string | false): void {
         if(player.voteTargetUUID !== null) throw new Error(`Player with playerUUID ${player.playerUUID} already voted`);
-        if(game.sheriffElectionDone) throw new Error(`Cannot vote in Game ${game.gameId} since lynch is already done!`);
+        if(game.sheriffElectionDone) throw new Error(`Cannot vote in Game ${game.gameId} since election is already done!`);
+        const nominatedPlayers = getNominatedPlayers(game);
+        if(!isNominationsFinished(game)) throw Error(`Game with Id ${game.gameId} has not finished with nominations, so vote cannot be cast`);
+        if(targetUUID !== false && !nominatedPlayers.includes(targetUUID)) throw new Error(`Player ${targetUUID} is not nominated, so voting for this player is not possible`)
 
         player.voteTargetUUID = targetUUID;
 
@@ -91,6 +100,9 @@ export const VoteHandler = {
         }
 
         game.phase = Phase.DAY;
-        game.players.forEach((p) => p.voteTargetUUID = null);
+        game.players.forEach((p) => {
+            p.voteTargetUUID = null;
+            p.nominationUUID = null;
+        });
     },
 }

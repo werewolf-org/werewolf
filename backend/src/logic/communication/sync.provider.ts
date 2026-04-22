@@ -67,6 +67,7 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
         lovePartnerConfirmed: player.lovePartnerConfirmed,
         readyForNight: player.readyForNight,
         myVoteTargetUUID: player.voteTargetUUID,
+        myNominationUUID: player.nominationUUID,
 
         nominationsFinished: isNominationsFinished(game),
         voteResults: getVoteResult(game),

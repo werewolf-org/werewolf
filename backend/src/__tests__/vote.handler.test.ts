@@ -163,9 +163,12 @@ describe("vote.handler", () => {
   });
 
   describe("castSheriffVote", () => {
-    it("records a vote for a player", () => {
+    it("records a vote for a nominated player", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      game.players[2].nominationUUID = "p1";
       VoteHandler.castSheriffVote(game, game.players[0], "p1");
       expect(game.players[0].voteTargetUUID).toBe("p1");
       expect(game.sheriffElectionDone).toBe(false);
@@ -174,6 +177,8 @@ describe("vote.handler", () => {
     it("records abstain vote (false)", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = "p0";
       VoteHandler.castSheriffVote(game, game.players[0], false);
       expect(game.players[0].voteTargetUUID).toBe(false);
     });
@@ -181,6 +186,9 @@ describe("vote.handler", () => {
     it("resolves election when last player votes", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      game.players[2].nominationUUID = "p1";
       VoteHandler.castSheriffVote(game, game.players[0], "p1");
       VoteHandler.castSheriffVote(game, game.players[1], "p1");
       VoteHandler.castSheriffVote(game, game.players[2], "p1");
@@ -191,6 +199,10 @@ describe("vote.handler", () => {
     it("resolves sheriff election with abstain-only votes to no sheriff", () => {
       const game = createGameWithPlayers(4);
       game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = false;
+      game.players[1].nominationUUID = false;
+      game.players[2].nominationUUID = false;
+      game.players[3].nominationUUID = false;
       VoteHandler.castSheriffVote(game, game.players[0], false);
       VoteHandler.castSheriffVote(game, game.players[1], false);
       VoteHandler.castSheriffVote(game, game.players[2], false);
@@ -203,13 +215,33 @@ describe("vote.handler", () => {
     it("throws when player already voted", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
       VoteHandler.castSheriffVote(game, game.players[0], "p1");
       expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("already voted");
+    });
+
+    it("throws when nominations not finished", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      // players[1] nominationUUID is null
+      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("has not finished with nominations");
+    });
+
+    it("throws when target is not nominated", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p0";
+      game.players[1].nominationUUID = false;
+      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("not nominated");
     });
 
     it("throws when election already done", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
       game.sheriffElectionDone = true;
       expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("already done");
     });
@@ -274,6 +306,18 @@ describe("vote.handler", () => {
       game.players[1].nominationUUID = "p0";
       VoteHandler.readyForNight(game, game.players[0]);
       VoteHandler.readyForNight(game, game.players[1]);
+      expect(game.players[0].voteTargetUUID).toBeNull();
+      expect(game.players[1].nominationUUID).toBeNull();
+    });
+
+    it("resets votes and nominations on sheriff acceptance", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.managerUUID = "p0";
+      game.sheriffUUID = "p1";
+      game.players[0].voteTargetUUID = "p1";
+      game.players[1].nominationUUID = "p0";
+      VoteHandler.acceptSheriffRole(game, game.players[1]);
       expect(game.players[0].voteTargetUUID).toBeNull();
       expect(game.players[1].nominationUUID).toBeNull();
     });
