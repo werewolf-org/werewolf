@@ -18,6 +18,10 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
     if (player.isAlive && player.role === Role.WEREWOLF) werewolfVotes = getWerewolfVotes(game);
     if (player.isAlive && (player.role === Role.WEREWOLF || player.role === Role.WITCH)) werewolfVictim = getWerewolfVictimUUID(game);
 
+    const alivePlayers = game.players.filter(p => p.isAlive);
+    const votedCount = alivePlayers.filter(p => p.voteTargetUUID !== null).length;
+    const voteProgress = { voted: votedCount, total: alivePlayers.length };
+
     // Cupid confirmation status
     let cupidSelectedLovers = false;
     let cupidFirstLoverConfirmed = false;
@@ -63,9 +67,11 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
         lovePartnerConfirmed: player.lovePartnerConfirmed,
         readyForNight: player.readyForNight,
         myVoteTargetUUID: player.voteTargetUUID,
+        myNominationUUID: player.nominationUUID,
 
         nominationsFinished: isNominationsFinished(game),
         voteResults: getVoteResult(game),
+        voteProgress: voteProgress,
         votedOutUUID: game.lastVotedOutUUID,
 
         werewolfVotes: werewolfVotes,

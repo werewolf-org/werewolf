@@ -5,7 +5,7 @@ export const isVotingComplete = (game: Game): boolean => {
     return alivePlayers.every(p => p.voteTargetUUID !== null);
 }
 
-export const getVoteResult = (game: Game): Record<string, string | null> | null => {
+export const getVoteResult = (game: Game): Record<string, string | false | null> | null => {
     if(!isVotingComplete(game)) return null;
     return Object.fromEntries(
             game.players
@@ -39,7 +39,7 @@ export const getVotingWinner = (game: Game): Player | null  => {
         if(player.voteTargetUUID) votes[player.voteTargetUUID] = (votes[player.voteTargetUUID] ?? 0) + 1;
     }
     const entries = Object.entries(votes);
-    if (entries.length === 0) throw new Error("No votes present");
+    if (entries.length === 0) return null;
 
     const maxCount = Math.max(...Object.entries(votes).map(([, count]) => count));
     const electedPlayers = entries

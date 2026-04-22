@@ -30,14 +30,16 @@ export interface LocalAppState {
     lovePartnerUUID: string | null,
     lovePartnerConfirmed: boolean,
     readyForNight: boolean,
-    myVoteTargetUUID: string | null,
+    myNominationUUID: string | false | null,
+    myVoteTargetUUID: string | false | null,
     lynchDone: boolean,
     sheriffElectionDone: boolean,
     winningTeam: string | null,
     
     // aggregated state (from game model)
     nominationsFinished: boolean;
-    voteResults: Record<string, string | null> | null;
+    voteResults: Record<string, string | false | null> | null;
+    voteProgress: { voted: number; total: number } | null;
     votedOutUUID: string | null;
 
     werewolfVotes: Record<string, string> | null;
@@ -75,6 +77,7 @@ const state: LocalAppState = {
     lovePartnerUUID: null,
     lovePartnerConfirmed: false,
     readyForNight: false,
+    myNominationUUID: null,
     myVoteTargetUUID: null,
     lynchDone: false,
     sheriffElectionDone: false,
@@ -82,6 +85,7 @@ const state: LocalAppState = {
 
     nominationsFinished: false,
     voteResults: null,
+    voteProgress: null,
     votedOutUUID: null,
     werewolfVotes: null,
     werewolfVictim: null,
@@ -150,11 +154,13 @@ export function resetState(): void {
         lovePartnerUUID: null,
         lovePartnerConfirmed: false,
         readyForNight: false,
+        myNominationUUID: null,
         myVoteTargetUUID: null,
         lynchDone: false,
         sheriffElectionDone: false,
 
         voteResults: null,
+        voteProgress: null,
         votedOutUUID: null,
         werewolfVotes: null,
         werewolfVictim: null,
