@@ -43,5 +43,6 @@
     "paths": {
       "@shared/*": ["../shared/*"]
     }
-  }
+  },
+  "exclude": ["src/__tests__"]
 }

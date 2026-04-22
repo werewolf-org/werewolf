@@ -51,10 +51,13 @@ export class GameManager {
             game.winningTeam = 'village'; // all werewolves are dead
         }
         // OPTION 3: only the loving pair is alive
-        const isInLove = (player: Player) => player.lovePartner != null;
-        if(alivePlayers.length === 2 && alivePlayers.every(isInLove)) {
-            game.phase = Phase.GAME_OVER;
-            game.winningTeam = 'couple'; // only couple lives
+        if(alivePlayers.length === 2) {
+            const a = alivePlayers[0];
+            const b = alivePlayers[1];
+            if (a && b && a.lovePartner === b.playerUUID && b.lovePartner === a.playerUUID) {
+                game.phase = Phase.GAME_OVER;
+                game.winningTeam = 'couple'; // only couple lives
+            }
         }
     }
 
@@ -134,6 +137,7 @@ export class GameManager {
     vote(gameId: string, socketId: string, targetUUID: string | false): void {
         const game = this.getGameById(gameId);
         const player = this.getPlayerBySocketId(game, socketId);
+        if(!player.isAlive) return;
         if(game.phase === Phase.DAY) VoteHandler.castLynchVote(game, player, targetUUID);
         else if(game.phase === Phase.SHERIFF_ELECTION) VoteHandler.castSheriffVote(game, player, targetUUID);
         else throw new Error(`Game with ID ${gameId} is not in Phase DAY or in Phase SHERIFF_ELECTION, so voting cannot happen right now`);
@@ -144,8 +148,9 @@ export class GameManager {
     nominate(gameId: any, socketId: string, nominationUUID: any): void | Promise<void> {
         const game = this.getGameById(gameId);
         const player = this.getPlayerBySocketId(game, socketId);
+        if(!player.isAlive) return;
+        // Nominations are only valid during DAY phase (lynch voting), not during SHERIFF_ELECTION
         if(game.phase === Phase.DAY) VoteHandler.nominate(game, player, nominationUUID);
-        // TODO: also do for SHERIFF VOTING
         else throw new Error(`Game with ID ${gameId} is not in Phase DAY, so nomination cannot happen right now`);
         this.checkGameOver(game);
         this.broadcastStateAndStore(game);
@@ -154,6 +159,7 @@ export class GameManager {
     acceptSheriffRole(gameId: string, socketId: string) {
         const game = this.getGameById(gameId);
         const player = this.getPlayerBySocketId(game, socketId);
+        if(!player.isAlive) return;
         VoteHandler.acceptSheriffRole(game, player);
         this.broadcastStateAndStore(game);
     }
@@ -161,6 +167,7 @@ export class GameManager {
     readyForNight(gameId: string, socketId: string) {
         const game = this.getGameById(gameId);
         const player = this.getPlayerBySocketId(game, socketId);
+        if(!player.isAlive) return;
         VoteHandler.readyForNight(game, player);
         this.broadcastStateAndStore(game);
     }

@@ -24,24 +24,30 @@ function startFullGame(playerCount: number, roles: Role[]): Game {
 
 function checkGameOver(game: Game): void {
   const alivePlayers = game.players.filter((player) => player.isAlive);
-  if(alivePlayers.length === 0) {
+  if (alivePlayers.length === 0) {
     game.phase = Phase.GAME_OVER;
     game.winningTeam = null;
     return;
+  }
+  // Check couple FIRST (overrides werewolf/village if 2 lovers remain)
+  if (alivePlayers.length === 2) {
+    const [a, b] = alivePlayers;
+    if (a.lovePartner === b.playerUUID && b.lovePartner === a.playerUUID) {
+      game.phase = Phase.GAME_OVER;
+      game.winningTeam = 'couple';
+      return;
+    }
   }
   const isWerewolf = (player: Player) => player.role == Role.WEREWOLF;
   if(alivePlayers.every(isWerewolf)) {
     game.phase = Phase.GAME_OVER;
     game.winningTeam = 'werewolves';
+    return;
   }
-  if(!alivePlayers.some(isWerewolf)) {
+  if (!alivePlayers.some(isWerewolf)) {
     game.phase = Phase.GAME_OVER;
     game.winningTeam = 'village';
-  }
-  const isInLove = (player: Player) => player.lovePartner != null;
-  if(alivePlayers.length === 2 && alivePlayers.every(isInLove)) {
-    game.phase = Phase.GAME_OVER;
-    game.winningTeam = 'couple';
+    return;
   }
 }
 
@@ -158,11 +164,9 @@ describe("elaborate game scenarios", () => {
       VoteHandler.nominate(game, game.players[2], false);
       if (game.players[3].isAlive) VoteHandler.nominate(game, game.players[3], false);
 
-      // Lynch vote unanimously via handler
-      VoteHandler.castLynchVote(game, game.players[0], "p1");
-      VoteHandler.castLynchVote(game, game.players[1], "p1");
-      VoteHandler.castLynchVote(game, game.players[2], "p1");
-      if (game.players[3].isAlive) VoteHandler.castLynchVote(game, game.players[3], "p1");
+      // Lynch vote unanimously via handler (skip dead players)
+      const alive = game.players.filter(p => p.isAlive);
+      alive.forEach(p => VoteHandler.castLynchVote(game, p, "p1"));
 
       expect(game.players[1].isAlive).toBe(false);
       expect(game.players[2].isAlive).toBe(false); // lover died too
@@ -246,13 +250,11 @@ describe("elaborate game scenarios", () => {
       NightHandler.nextRole(game);
       expect(game.phase).toBe(Phase.DAY);
 
-      // Lynch the only werewolf — only one player needs to nominate
-      VoteHandler.nominate(game, game.players[0], "p0");
-      VoteHandler.nominate(game, game.players[1], false);
-      VoteHandler.nominate(game, game.players[2], false);
-      VoteHandler.castLynchVote(game, game.players[0], "p0");
-      VoteHandler.castLynchVote(game, game.players[1], "p0");
-      VoteHandler.castLynchVote(game, game.players[2], "p0"); // triggers
+      // Lynch the only werewolf — all alive players nominate/vote
+      const alive = game.players.filter(p => p.isAlive);
+      VoteHandler.nominate(game, alive[0], "p0");
+      alive.slice(1).forEach(p => VoteHandler.nominate(game, p, false));
+      alive.forEach(p => VoteHandler.castLynchVote(game, p, "p0")); // triggers
 
       expect(game.players[0].isAlive).toBe(false);
       checkGameOver(game);
@@ -280,13 +282,11 @@ describe("elaborate game scenarios", () => {
       expect(alive.every(isWerewolf)).toBe(false); // not ALL wolves yet
       expect(alive.some(isWerewolf)).toBe(true);   // but wolves exist
 
-      // Lynch one more villager to trigger end
-      VoteHandler.nominate(game, game.players[0], "p3");
-      VoteHandler.nominate(game, game.players[1], false);
-      VoteHandler.nominate(game, game.players[3], false);
-      VoteHandler.castLynchVote(game, game.players[0], "p3");
-      VoteHandler.castLynchVote(game, game.players[1], "p3");
-      VoteHandler.castLynchVote(game, game.players[3], "p3"); // triggers
+      // Lynch one more villager to trigger end (only alive vote)
+      const aliveDay2 = game.players.filter(p => p.isAlive);
+      VoteHandler.nominate(game, aliveDay2[0], "p3");
+      aliveDay2.slice(1).forEach(p => VoteHandler.nominate(game, p, false));
+      aliveDay2.forEach(p => VoteHandler.castLynchVote(game, p, "p3")); // triggers
       checkGameOver(game);
 
       expect(game.phase).toBe(Phase.GAME_OVER);
@@ -496,19 +496,18 @@ describe("elaborate game scenarios", () => {
       NightHandler.nextRole(game);
       expect(game.phase).toBe(Phase.DAY);
 
-      // p0 nominates p1, p1 abstains, p2 nominates p1, p3 abstains, p4 nominates p3
-      VoteHandler.nominate(game, game.players[0], "p1");
-      VoteHandler.nominate(game, game.players[1], false);
-      VoteHandler.nominate(game, game.players[2], false); // p1 already nominated by p0
-      VoteHandler.nominate(game, game.players[3], false);
-      VoteHandler.nominate(game, game.players[4], "p3");
+      // Alive: p0 (wolf), p1, p3, p4 (p2 dead)
+      const aliveDay = game.players.filter(p => p.isAlive);
+      aliveDay.forEach((p, idx) => {
+        const nominations = ["p1", false, false, "p3"]; // p0 → p1, p1 → false, p3 → false, p4 → p3
+        VoteHandler.nominate(game, p, nominations[idx] as any);
+      });
 
-      // p0 votes p1, p1 abstains, p2 votes p1, p3 votes p3, p4 votes p1
-      VoteHandler.castLynchVote(game, game.players[0], "p1");
-      VoteHandler.castLynchVote(game, game.players[1], false);
-      VoteHandler.castLynchVote(game, game.players[2], "p1");
-      VoteHandler.castLynchVote(game, game.players[3], "p3");
-      VoteHandler.castLynchVote(game, game.players[4], "p1"); // triggers: 3 votes p1, 1 vote p3
+      // Alive players vote
+      aliveDay.forEach((p, idx) => {
+        const votes = ["p1", false, "p3", "p1"]; // 3 p1, 1 p3
+        VoteHandler.castLynchVote(game, p, votes[idx] as any);
+      });
 
       expect(game.lastVotedOutUUID).toBe("p1");
     });
