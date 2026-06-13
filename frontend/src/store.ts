@@ -14,6 +14,7 @@ export interface LocalPlayerModel {
 
 export interface LocalAppState {
     isConnected: boolean,
+    serverBootStartTime: number | null,
 
     // global (game model mirror)
     gameId: string | null,
@@ -63,6 +64,7 @@ export interface LocalAppState {
 
 const state: LocalAppState = {
     isConnected: false,
+    serverBootStartTime: null,
     
     gameId: null,
     playerUUID: localStorage.getItem('playerUUID') ?? null,

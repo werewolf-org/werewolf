@@ -485,3 +485,75 @@ h1, h2, h3 {
     font-style: italic;
     font-size: 1.1rem;
 }
+
+/* --- COLD-START GATE STYLES --- */
+.server-gate-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    padding: var(--spacing-md);
+    backdrop-filter: blur(4px);
+}
+
+.server-gate-card {
+    max-width: 350px;
+    width: 100%;
+    text-align: center;
+}
+
+.server-gate-card h2 {
+    margin-bottom: var(--spacing-md);
+}
+
+.server-gate-card p {
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    margin-bottom: var(--spacing-lg);
+}
+
+.server-gate-card .btn {
+    margin-top: var(--spacing-md);
+}
+
+.progress-track {
+    width: 100%;
+    height: 16px;
+    background-color: var(--input-bg);
+    border: var(--border-width) solid var(--border-color);
+    box-shadow: var(--shadow-offset) var(--shadow-offset) 0px var(--border-color);
+    margin-bottom: var(--spacing-md);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background-color: var(--primary);
+    transition: width 0.1s linear;
+}
+
+.progress-fill.timeout {
+    background-color: var(--accent);
+}
+
+/* Inline progress bar replacing a button */
+.inline-progress-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.inline-progress-label {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.7rem;
+    color: var(--highlight);
+}
