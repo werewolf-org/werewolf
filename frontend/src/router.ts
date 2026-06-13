@@ -51,7 +51,13 @@ export const render = () => {
 };
 
 export const navigate = (path: string) => {
-  window.location.hash = path;
+  if (window.location.hash === path) {
+    // Hash is already the same, but we may need to re-render
+    // (e.g. switching from ServerGatePage to GamePage on the same route)
+    render();
+  } else {
+    window.location.hash = path;
+  }
 };
 
 /** Force a full re-render regardless of hash change */

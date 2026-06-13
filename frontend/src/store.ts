@@ -144,7 +144,9 @@ export function resetState(): void {
     Object.assign(state, {
         playerUUID: localStorage.getItem('playerUUID') ?? null,
 
-        isConnected: false,
+        // Note: we intentionally do NOT reset isConnected here.
+        // The socket is a global singleton that persists across game state resets.
+        // Resetting it here would break the cold-start gate logic.
 
         phase: null,
         activeNightRole: null,
