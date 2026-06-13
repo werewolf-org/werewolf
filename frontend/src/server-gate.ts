@@ -30,6 +30,8 @@ export class ServerGate extends View {
         this.startTime = getState().serverBootStartTime ?? Date.now();
     }
 
+    private isResolved = false;
+
     mount(container: HTMLElement): void {
         this.container = container;
 
@@ -41,15 +43,22 @@ export class ServerGate extends View {
 
         this.startTimer();
 
-        // Listen for connection
+        // Listen for connection changes
         subscribeSelector(this, (s) => s.isConnected, (isConnected) => {
-            if (isConnected && !this.isTimedOut) {
+            if (isConnected && !this.isTimedOut && !this.isResolved) {
                 this.handleReady();
             }
         });
+
+        // CRITICAL: The socket may have connected before we subscribed.
+        // Check immediately after registration so we don't miss it.
+        if (getState().isConnected && !this.isTimedOut && !this.isResolved) {
+            this.handleReady();
+        }
     }
 
     unmount(): void {
+        this.isResolved = true; // Prevent any stray callbacks from firing after unmount
         super.unmount();
         if (this.timerId !== null) {
             window.clearInterval(this.timerId);
@@ -126,6 +135,9 @@ export class ServerGate extends View {
     }
 
     private handleReady(): void {
+        if (this.isResolved) return;
+        this.isResolved = true;
+
         if (this.timerId !== null) {
             window.clearInterval(this.timerId);
             this.timerId = null;
@@ -170,6 +182,7 @@ export class ServerGate extends View {
 
     private handleRetry(): void {
         this.isTimedOut = false;
+        this.isResolved = false;
         this.startTime = Date.now();
         setState({ serverBootStartTime: this.startTime });
 
@@ -186,7 +199,15 @@ export class ServerGate extends View {
             this.retryBtn.style.display = 'none';
         }
 
-        // Force a new socket connection attempt
+        // If we're already connected, proceed immediately.
+        // This can happen if the server woke up right at timeout.
+        if (getState().isConnected) {
+            this.handleReady();
+            return;
+        }
+
+        // Force a fresh connection attempt
+        socketService.disconnect();
         socketService.connect();
         this.startTimer();
     }

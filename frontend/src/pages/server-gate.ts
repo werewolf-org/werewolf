@@ -1,6 +1,5 @@
 import { ServerGate } from '../server-gate';
 import { navigate } from '../router';
-import { socketService } from '../socket.service';
 import { View } from '../base-view';
 
 export class ServerGatePage extends View {
@@ -22,8 +21,8 @@ export class ServerGatePage extends View {
         this.container.appendChild(placeholder);
 
         this.gate = new ServerGate('overlay', () => {
-            // Ready: socket is connected, now join the game and route
-            socketService.joinGame(this.gameId, null);
+            // Ready: socket is connected. Navigate to the game route.
+            // GamePage.mount() will handle the joinGame emit.
             navigate(`#/game/${this.gameId}`);
         }, () => {
             // Timeout: nothing extra needed, the gate UI shows retry button
