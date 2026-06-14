@@ -2,7 +2,7 @@ import { getState, setState, subscribeSelector } from './store';
 import { View } from './base-view';
 import { socketService } from './socket.service';
 
-const BOOT_ESTIMATE_MS = 25000;
+const BOOT_ESTIMATE_MS = 22000;
 const TIMEOUT_MS = 45000;
 const UPDATE_INTERVAL_MS = 100;
 
@@ -75,7 +75,7 @@ export class ServerGate extends View {
         overlay.className = 'server-gate-overlay';
         overlay.innerHTML = `
             <div class="pixel-card server-gate-card">
-                <h2>Waking Up Server</h2>
+                <h2>Loading Game</h2>
                 <p>Our server sleeps to save resources. It needs a moment to wake up...</p>
                 <div class="progress-track">
                     <div class="progress-fill" id="gate-progress-fill" style="width: 0%"></div>
@@ -103,7 +103,7 @@ export class ServerGate extends View {
                 <div class="progress-track">
                     <div class="progress-fill" id="gate-progress-fill" style="width: 0%"></div>
                 </div>
-                <span id="gate-status-label" class="inline-progress-label">Waking up server...</span>
+                <span id="gate-status-label" class="inline-progress-label">Loading game...</span>
                 <button id="gate-retry-btn" class="btn" style="display: none;">Retry</button>
             </div>
         `;
@@ -192,7 +192,7 @@ export class ServerGate extends View {
         }
 
         if (this.labelEl) {
-            this.labelEl.textContent = 'Connecting...';
+            this.labelEl.textContent = 'Loading game...';
         }
 
         if (this.retryBtn) {
