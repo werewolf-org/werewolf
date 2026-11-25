@@ -22,7 +22,7 @@ The project follows a **Reactive State Machine** pattern. In this model, the Fro
 ### Core Mandates:
 1.  **State-Driven UI**: UI elements MUST NOT trigger other UI elements directly. All UI changes must be a side-effect of a state update. (e.g., A button click calls a socket action -> Socket updates the Store -> Store triggers a UI re-render).
 2.  **Unidirectional Data Flow**: Backend State -> Socket `syncState` -> Frontend Store -> UI.
-3.  **Tailored Snapshots**: Instead of granular events, the backend sends a "Tailored State Snapshot" (`syncState`) to each player. This snapshot contains only the information that specific player is allowed to see (e.g., their own role, their own potion status, and public game info). **Exception**: When the phase is `GAME_OVER`, all player roles and statuses are revealed to everyone for the summary screen.
+3.  **Tailored Snapshots**: Instead of granular events, the backend sends a "Tailored State Snapshot" (`syncState`) to each player. This snapshot contains only the information that specific player is allowed to see (e.g., their own role, their own potion status, and public game info). **Exception**: a dead player's `role` is public once they die (the death popup shows it), and when the phase is `GAME_OVER` all player roles and statuses are revealed to everyone for the summary screen.
 
 # Development Setup
 
@@ -59,7 +59,7 @@ These modules contain the "Readers"—pure utility functions that calculate info
 The `SyncProvider` is responsible for building the **Tailored Snapshots**. 
 - It aggregates the current game state and authorizations into a customized JSON patch for each specific player.
 - It ensures players only see what they are allowed to (e.g., a Villager doesn't see Werewolf votes).
-- **Exception**: When the phase is `GAME_OVER`, it reveals all roles and statuses for the summary screen.
+- **Exception**: when the phase is `GAME_OVER` it reveals all roles and statuses for the summary screen; a dead player's role is revealed as soon as they die (this is intentional, the death popup shows it).
 
 ## Communication Flow
 1. **Socket Event**: `index.ts` initializes the Socket.IO server and delegates event registration to `socket.routes.ts`. `socket.routes.ts` receives socket events and calls the relevant `GameManager` method.
@@ -117,11 +117,12 @@ npx vitest run src/__tests__/vote.selectors.test.ts  # Single file
 ## Game Logic (State Machine)
 The game follows a strict phase sequence:
 1.  **LOBBY**: Players join via QR code/Socket.
-2.  **SETUP**: Game Master selects roles.
+2.  **ROLE_SELECTION**: Game Master selects roles.
 3.  **DISTRIBUTION**: Roles are assigned.
 4.  **NIGHT**: A sequence of sub-turns (Seer -> Wolves -> Witch -> ...).
     - The `Game` object tracks `activeNightRole` to know whose turn it is.
     - `role.handler.ts` manages the transition between roles using `nextRole`.
+    - An action is only valid when the player's role is `activeNightRole` *and* the player is alive.
 5.  **SHERIFF_ELECTION**: Occurs after the first Night (Round 0).
     - The village votes for a Sheriff.
     - Resolution requires the elected Sheriff to accept the badge or the GM to continue.
@@ -130,6 +131,13 @@ The game follows a strict phase sequence:
     - Voting logic is handled in `VoteHandler.castLynchVote`.
     - Lynch resolution triggers a return to **NIGHT**.
 7.  **GAME_OVER**: Win condition met.
+
+## Known limitations (accepted, do not "fix" silently)
+
+- **Rejoin is keyed on `playerUUID`, not a secret.** `playerUUID` is part of every player's snapshot, so in principle one player can take over another's seat by emitting `joinGame` with their UUID. Accepted for a party game played by friends in one room; do not build a token scheme without asking. The frontend escaping of display names is what keeps this from being remotely reachable.
+- **No werewolf/villager parity win condition.** The game only ends when all wolves are dead, only wolves are alive, or only the loving couple is alive. A village that is outnumbered keeps playing.
+- **The game manager is the only escape hatch.** When a phase is stuck (a player went AFK), the GM advances it explicitly; there is no timeout and a disconnected player is not removed from the game, only from the socket mapping.
+
 
 # Frontend Architecture
 
