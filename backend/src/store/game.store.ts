@@ -9,8 +9,14 @@ export class GameStore {
         return this.instance;
     }
 
+    // Refuses to overwrite an existing game: a duplicate id would silently replace a running game.
     createGame(game: Game): void {
+        if (this.games.has(game.gameId)) throw new Error(`Game with ID ${game.gameId} already exists`);
         this.games.set(game.gameId, game);
+    }
+
+    hasGame(gameId: string): boolean {
+        return this.games.has(gameId);
     }
 
     getGame(gameId: string): Game | undefined {

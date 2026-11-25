@@ -1,10 +1,34 @@
 import { Phase } from "@shared/phases.js";
 import { v4 as uuidv4 } from 'uuid';
 import type { Game, Player } from "../../models.js";
-import type { Role } from "@shared/roles.js";
+import { Role, ROLES } from "@shared/roles.js";
 import { getNextToWakeUp } from "../selectors/night.selectors.js";
+import { GameStore } from "../../store/game.store.js";
 
-const generateGameId = (): string => Math.random().toString(36).substring(2, 6).toUpperCase();
+// Minimum number of players required to leave the lobby.
+// 4 = one werewolf + three villagers is the smallest setup where the village has a
+// realistic chance to vote out the wolf before the night kills decide the game.
+export const MIN_PLAYERS = 4;
+const GAME_ID_LENGTH = 4;
+const GAME_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const MAX_GAME_ID_ATTEMPTS = 1000;
+
+const randomGameId = (): string => {
+    let id = "";
+    for (let i = 0; i < GAME_ID_LENGTH; i++) {
+        id += GAME_ID_ALPHABET[Math.floor(Math.random() * GAME_ID_ALPHABET.length)];
+    }
+    return id;
+}
+
+const generateGameId = (isTaken: (gameId: string) => boolean): string => {
+    for (let attempt = 0; attempt < MAX_GAME_ID_ATTEMPTS; attempt++) {
+        const candidate = randomGameId();
+        if (!isTaken(candidate)) return candidate;
+    }
+    throw new Error(`Could not generate a unique game id after ${MAX_GAME_ID_ATTEMPTS} attempts`);
+}
+
 const shuffledIndices = (n: number): number[] => {
     const a = Array.from({ length: n }, (_, i) => i);
 
@@ -19,8 +43,10 @@ const shuffledIndices = (n: number): number[] => {
 }
 
 export const LobbyHander = {
-    createGame(): Game {
-        const newGameId = generateGameId();
+    // The default uniqueness check looks at the live GameStore, so a new id can never
+    // silently overwrite a running game. Callers usually pass nothing.
+    createGame(isGameIdTaken: (gameId: string) => boolean = (gameId) => GameStore.getInstance().hasGame(gameId)): Game {
+        const newGameId = generateGameId(isGameIdTaken);
         const newGame: Game = {
             gameId: newGameId,
             managerUUID: null,
@@ -73,6 +99,7 @@ export const LobbyHander = {
     },
     closeJoining(game: Game): void {
         if(game.phase !== Phase.LOBBY) throw new Error(`Game ${game.gameId} is already in progress, so joining cannot be closed.`);
+        if(game.players.length < MIN_PLAYERS) throw new Error(`Game ${game.gameId} only has ${game.players.length} players, but at least ${MIN_PLAYERS} are required to start a game.`);
         game.phase = Phase.ROLE_SELECTION;
         // name unnamed players
         const playersWithoutName = game.players.filter(p => !p.displayName);
@@ -83,23 +110,47 @@ export const LobbyHander = {
         if(game.phase !== Phase.ROLE_SELECTION) throw new Error(`Game ${game.gameId} is currently not in phase ROLE_SELECTION, so Distribution cannot start!`);
         if(game.players === undefined) throw new Error(`No players are defined in game ${game.gameId}`);
 
-        const totalRoles = Object.values(roles).reduce((sum, count) => sum + (count as number), 0);
+        const requestedRoles = Object.entries(roles) as [string, number][];
+
+        // 1. validate the requested composition completely before touching any player
+        let totalRoles = 0;
+        for (const [roleKey, amount] of requestedRoles) {
+            if (!Object.prototype.hasOwnProperty.call(ROLES, roleKey)) {
+                throw new Error(`Unknown role ${roleKey} in role distribution for game ${game.gameId}`);
+            }
+            if (!Number.isInteger(amount) || amount < 0) {
+                throw new Error(`Invalid amount ${amount} for role ${roleKey} in game ${game.gameId}`);
+            }
+            totalRoles += amount;
+        }
         if (totalRoles !== game.players.length) {
             throw new Error(`Total roles assigned (${totalRoles}) does not match number of players (${game.players.length})`);
         }
+        if (!requestedRoles.some(([roleKey, amount]) => roleKey === Role.WEREWOLF && amount > 0)) {
+            throw new Error(`Game ${game.gameId} needs at least one Werewolf to be playable`);
+        }
+        if (!requestedRoles.some(([roleKey, amount]) => amount > 0 && ROLES[roleKey as Role].wakesUp)) {
+            throw new Error(`Game ${game.gameId} needs at least one role that wakes up in the night, otherwise the game cannot start`);
+        }
 
+        // 2. compute the full assignment, then write it in one go (all-or-nothing)
         const shuffledPlayerIndices: number[] = shuffledIndices(game.players.length);
+        const assignment: [Player, Role][] = [];
 
         let i: number = 0;
-        Object.entries(roles).forEach(([role, amount]) => {
-            for (let j = i; j < i + (amount as number); j++) {
+        requestedRoles.forEach(([roleKey, amount]) => {
+            for (let j = i; j < i + amount; j++) {
                 const playerIndex = shuffledPlayerIndices[j];
                 if (playerIndex === undefined) throw new Error(`No index found in shuffledPlayerIndices at position ${j}`);
                 const player = game.players[playerIndex];
                 if (!player) throw new Error(`Player index ${playerIndex} does not exist in game ${game.gameId}`)
-                player.role = role as Role; 
+                assignment.push([player, roleKey as Role]);
             }
-            i += amount as number;
+            i += amount;
+        });
+
+        assignment.forEach(([player, role]) => {
+            player.role = role;
         });
 
         game.phase = Phase.DISTRIBUTION;
@@ -108,9 +159,13 @@ export const LobbyHander = {
     // when gm starts game
     startGame(game: Game): void {
         if(game.phase !== Phase.DISTRIBUTION) throw new Error(`Game ${game.gameId} is not currently in the right phase to be started!`);
+
+        // resolve the first night role first, so a failing start leaves the game untouched
+        const firstNightRole = getNextToWakeUp(game, true);
+        if(!firstNightRole) throw new Error(`Game ${game.gameId} does not have an active night role, although the game should start!`);
+
         game.phase = Phase.NIGHT;
-        game.activeNightRole = getNextToWakeUp(game, true);
-        if(!game.activeNightRole) throw new Error(`Game ${game.gameId} does not have an active night role (${game.activeNightRole}), although the game started!`);
+        game.activeNightRole = firstNightRole;
         console.log(`Game ${game.gameId} started...`)
     }
 

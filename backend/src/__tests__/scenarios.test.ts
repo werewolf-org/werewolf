@@ -428,22 +428,23 @@ describe("elaborate game scenarios", () => {
     /* ================================================================
        12. SEER REVEALING ROLE OF DEAD PLAYER
        ================================================================ */
-    it("seer can reveal role even of a dead player (current behavior)", () => {
+    it("seer cannot reveal the role of a dead player (B7: targets must be alive)", () => {
       const game = createGameWithPlayers(3);
       setRoles(game, [Role.SEER, Role.WEREWOLF, Role.VILLAGER]);
       game.players[1].isAlive = false;
       game.phase = Phase.NIGHT;
-      SeerHandler.handleRevealingRole(game, game.players[0], "p1");
-      expect((game.players[0].nightAction as any).revealedRole).toBe(Role.WEREWOLF);
+      expect(() => SeerHandler.handleRevealingRole(game, game.players[0], "p1")).toThrow("already dead");
+      expect(game.players[0].nightAction).toBeNull();
     });
 
     /* ================================================================
        13. WITCH CANNOT REUSE HEALING POTION
        ================================================================ */
     it("throws when witch tries to heal twice across nights", () => {
-      const game = createGameWithPlayers(2);
-      setRoles(game, [Role.WITCH, Role.VILLAGER]);
+      const game = createGameWithPlayers(3);
+      setRoles(game, [Role.WITCH, Role.WEREWOLF, Role.VILLAGER]);
       game.phase = Phase.NIGHT;
+      game.players[1].nightAction = { targetUUID: "p2" }; // werewolf victim to heal
       WitchHandler.handlePotion(game, game.players[0], true, null);
       expect(game.players[0].usedHealingPotion).toBe(true);
       expect(() => WitchHandler.handlePotion(game, game.players[0], true, null)).toThrow("already used healing potion");
@@ -538,18 +539,21 @@ describe("elaborate game scenarios", () => {
       game.sheriffElectionDone = false;
       game.players.forEach(p => { p.voteTargetUUID = null; p.nominationUUID = null; p.readyForNight = false; });
 
-      VoteHandler.nominate(game, game.players[0], "p1");
-      VoteHandler.nominate(game, game.players[1], false);
+      // p0 was killed during the night and can no longer nominate or vote
+      expect(game.players[0].isAlive).toBe(false);
+      const aliveElection = game.players.filter(p => p.isAlive);
+      VoteHandler.nominate(game, game.players[1], "p2");
       VoteHandler.nominate(game, game.players[2], false);
       VoteHandler.nominate(game, game.players[3], "p4");
       VoteHandler.nominate(game, game.players[4], false);
-      VoteHandler.castSheriffVote(game, game.players[0], "p1");
-      VoteHandler.castSheriffVote(game, game.players[1], "p1");
-      VoteHandler.castSheriffVote(game, game.players[2], "p1");
+      VoteHandler.castSheriffVote(game, game.players[1], "p2");
+      VoteHandler.castSheriffVote(game, game.players[2], "p2");
       VoteHandler.castSheriffVote(game, game.players[3], "p4");
-      VoteHandler.castSheriffVote(game, game.players[4], "p1"); // triggers
+      VoteHandler.castSheriffVote(game, game.players[4], "p2"); // triggers
 
-      expect(game.sheriffUUID).toBe("p1");
+      expect(aliveElection.length).toBe(4);
+      expect(game.sheriffElectionDone).toBe(true);
+      expect(game.sheriffUUID).toBe("p2");
     });
 
     /* ================================================================

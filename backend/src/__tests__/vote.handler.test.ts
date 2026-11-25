@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { createMockGame, createMockPlayer, createGameWithPlayers } from "./test-helpers.js";
+import { createMockGame, createMockPlayer, createGameWithPlayers, setRoles } from "./test-helpers.js";
 import { Phase } from "@shared/phases.js";
 import { Role } from "@shared/roles.js";
-import { VoteHandler } from "../logic/handlers/vote.handler.js";
+import { VoteHandler, handleSheriffDeath } from "../logic/handlers/vote.handler.js";
+import { isNominationsFinished, isVotingComplete } from "../logic/selectors/vote.selectors.js";
 
 describe("vote.handler", () => {
   describe("nominate", () => {
@@ -55,6 +56,30 @@ describe("vote.handler", () => {
       VoteHandler.nominate(game, game.players[1], "p0");
       VoteHandler.nominate(game, game.players[2], false);
       expect(game.lynchDone).toBe(false);
+    });
+
+    it("rejects a dead candidate (B13)", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
+      game.players[2].isAlive = false;
+      expect(() => VoteHandler.nominate(game, game.players[0], "p2")).toThrow("not an alive player");
+      expect(game.players[0].nominationUUID).toBeNull();
+    });
+
+    it("rejects an unknown candidate (B13)", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.DAY;
+      expect(() => VoteHandler.nominate(game, game.players[0], "does-not-exist")).toThrow("not an alive player");
+      expect(game.players[0].nominationUUID).toBeNull();
+      expect(isNominationsFinished(game)).toBe(false);
+    });
+
+    it("normalises an undefined payload to abstain (B14)", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.DAY;
+      VoteHandler.nominate(game, game.players[0], undefined as any);
+      expect(game.players[0].nominationUUID).toBe(false);
+      expect(isNominationsFinished(game)).toBe(false);
     });
   });
 
@@ -160,6 +185,33 @@ describe("vote.handler", () => {
       VoteHandler.castLynchVote(game, game.players[0], false);
       expect(game.players[0].voteTargetUUID).toBe(false);
     });
+
+    it("normalises an undefined payload to abstain (B14)", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.DAY;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      VoteHandler.castLynchVote(game, game.players[0], undefined as any);
+      expect(game.players[0].voteTargetUUID).toBe(false);
+      expect(isVotingComplete(game)).toBe(false);
+    });
+
+    it("a disconnected player still blocks the lynch until the GM force-advances", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      game.players[2].nominationUUID = "p1";
+      game.players[2].socketId = null; // disconnected, has not voted yet
+      VoteHandler.castLynchVote(game, game.players[0], "p1");
+      VoteHandler.castLynchVote(game, game.players[1], "p1");
+      expect(isVotingComplete(game)).toBe(false);
+      expect(game.lynchDone).toBe(false);
+
+      VoteHandler.forceAdvance(game);
+      expect(game.lynchDone).toBe(true);
+      expect(game.lastVotedOutUUID).toBe("p1");
+    });
   });
 
   describe("castSheriffVote", () => {
@@ -245,14 +297,64 @@ describe("vote.handler", () => {
       game.sheriffElectionDone = true;
       expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("already done");
     });
+
+    it("normalises an undefined payload to abstain (B14)", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      VoteHandler.castSheriffVote(game, game.players[0], undefined as any);
+      expect(game.players[0].voteTargetUUID).toBe(false);
+      expect(game.sheriffElectionDone).toBe(false);
+    });
+
+    it("a disconnected player still blocks the election until the GM force-advances", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      game.players[2].nominationUUID = false;
+      game.players[2].socketId = null; // disconnected, has not voted yet
+      VoteHandler.castSheriffVote(game, game.players[0], "p1");
+      VoteHandler.castSheriffVote(game, game.players[1], "p1");
+      expect(isVotingComplete(game)).toBe(false);
+      expect(game.sheriffElectionDone).toBe(false);
+
+      VoteHandler.forceAdvance(game);
+      expect(game.sheriffElectionDone).toBe(true);
+      expect(game.sheriffUUID).toBe("p1");
+    });
   });
 
   describe("readyForNight", () => {
     it("marks player ready", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.DAY;
+      game.lynchDone = true;
       VoteHandler.readyForNight(game, game.players[0]);
       expect(game.players[0].readyForNight).toBe(true);
+      expect(game.phase).toBe(Phase.DAY);
+    });
+
+    it("throws when the lynch is not done yet (B12)", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.DAY;
+      game.lynchDone = false;
+      expect(() => VoteHandler.readyForNight(game, game.players[0])).toThrow("has not resolved the lynch yet");
+      expect(game.players[0].readyForNight).toBe(false);
+      expect(game.phase).toBe(Phase.DAY);
+    });
+
+    it("does not end the day when all alive players are ready during nominations (B12)", () => {
+      const game = createGameWithPlayers(3);
+      setRoles(game, [Role.WEREWOLF, Role.VILLAGER, Role.VILLAGER]);
+      game.phase = Phase.DAY;
+      game.players.forEach(p => p.nominationUUID = false);
+      game.lynchDone = false;
+
+      game.players.forEach(p => {
+        expect(() => VoteHandler.readyForNight(game, p)).toThrow("has not resolved the lynch yet");
+      });
       expect(game.phase).toBe(Phase.DAY);
     });
 
@@ -315,11 +417,28 @@ describe("vote.handler", () => {
       game.phase = Phase.SHERIFF_ELECTION;
       game.managerUUID = "p0";
       game.sheriffUUID = "p1";
+      game.sheriffElectionDone = true;
       game.players[0].voteTargetUUID = "p1";
       game.players[1].nominationUUID = "p0";
       VoteHandler.acceptSheriffRole(game, game.players[1]);
       expect(game.players[0].voteTargetUUID).toBeNull();
       expect(game.players[1].nominationUUID).toBeNull();
+    });
+
+    it("a disconnected player blocks the night transition until the GM force-advances", () => {
+      const game = createGameWithPlayers(3);
+      setRoles(game, [Role.WEREWOLF, Role.VILLAGER, Role.VILLAGER]);
+      game.phase = Phase.DAY;
+      game.players.forEach(p => p.nominationUUID = false);
+      game.lynchDone = true;
+      game.players[2].socketId = null; // disconnected, never confirms
+      VoteHandler.readyForNight(game, game.players[0]);
+      VoteHandler.readyForNight(game, game.players[1]);
+      expect(game.phase).toBe(Phase.DAY);
+
+      VoteHandler.forceAdvance(game);
+      expect(game.phase).toBe(Phase.NIGHT);
+      expect(game.round).toBe(1);
     });
   });
 
@@ -328,6 +447,7 @@ describe("vote.handler", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
       game.sheriffUUID = "p1";
+      game.sheriffElectionDone = true;
       game.players[0].voteTargetUUID = "p1";
       game.players[1].voteTargetUUID = "p1";
       game.players[2].voteTargetUUID = "p1";
@@ -336,20 +456,45 @@ describe("vote.handler", () => {
       expect(game.players[0].voteTargetUUID).toBeNull();
     });
 
+    it("GM can continue when a sheriff was elected but never accepts (B21)", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.managerUUID = "p0";
+      game.sheriffUUID = "p1";
+      game.sheriffElectionDone = true;
+      VoteHandler.acceptSheriffRole(game, game.players[0]);
+      expect(game.phase).toBe(Phase.DAY);
+      expect(game.sheriffUUID).toBe("p1");
+      expect(game.sheriffElectionDone).toBe(true);
+    });
+
     it("GM skips when no sheriff elected", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
       game.managerUUID = "p0";
+      game.sheriffElectionDone = true;
       game.players[0].voteTargetUUID = false;
       game.players[1].voteTargetUUID = false;
       VoteHandler.acceptSheriffRole(game, game.players[0]);
       expect(game.phase).toBe(Phase.DAY);
+      expect(game.sheriffElectionDone).toBe(true);
+    });
+
+    it("throws when the election is not resolved yet (B4)", () => {
+      const game = createGameWithPlayers(2);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.managerUUID = "p0";
+      game.players[0].nominationUUID = "p1";
+      expect(() => VoteHandler.acceptSheriffRole(game, game.players[0])).toThrow("is not resolved yet");
+      expect(game.phase).toBe(Phase.SHERIFF_ELECTION);
+      expect(game.sheriffElectionDone).toBe(false);
     });
 
     it("throws when non-sheriff tries to accept after election", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
       game.sheriffUUID = "p1";
+      game.sheriffElectionDone = true;
       expect(() => VoteHandler.acceptSheriffRole(game, game.players[0])).toThrow("not the elected sheriff");
     });
 
@@ -357,6 +502,7 @@ describe("vote.handler", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
       game.managerUUID = "p0";
+      game.sheriffElectionDone = true;
       expect(() => VoteHandler.acceptSheriffRole(game, game.players[1])).toThrow("Only GM");
     });
 
@@ -364,6 +510,166 @@ describe("vote.handler", () => {
       const game = createGameWithPlayers(1);
       game.phase = Phase.DAY;
       expect(() => VoteHandler.acceptSheriffRole(game, game.players[0])).toThrow("not in SHERIFF_ELECTION");
+    });
+  });
+
+  describe("handleSheriffDeath (B23)", () => {
+    it("clears the badge when the sheriff died", () => {
+      const game = createGameWithPlayers(3);
+      game.sheriffUUID = "p1";
+      game.players[1].isAlive = false;
+      handleSheriffDeath(game);
+      expect(game.sheriffUUID).toBeNull();
+    });
+
+    it("keeps the badge while the sheriff is alive", () => {
+      const game = createGameWithPlayers(3);
+      game.sheriffUUID = "p1";
+      handleSheriffDeath(game);
+      expect(game.sheriffUUID).toBe("p1");
+    });
+
+    it("is a no-op when nobody holds the badge", () => {
+      const game = createGameWithPlayers(2);
+      game.players[0].isAlive = false;
+      expect(() => handleSheriffDeath(game)).not.toThrow();
+      handleSheriffDeath(game);
+      expect(game.sheriffUUID).toBeNull();
+    });
+
+    it("clears the badge when the sheriff is voted out", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
+      game.sheriffUUID = "p1";
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      game.players[2].nominationUUID = false;
+      game.players.forEach(p => VoteHandler.castLynchVote(game, p, "p1"));
+      expect(game.players[1].isAlive).toBe(false);
+      expect(game.lastVotedOutUUID).toBe("p1");
+      expect(game.sheriffUUID).toBeNull();
+    });
+  });
+
+  describe("forceAdvance (B20)", () => {
+    it("finishes the nominations stage with abstains and leaves the trial open", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
+      VoteHandler.nominate(game, game.players[0], "p1");
+
+      VoteHandler.forceAdvance(game);
+
+      expect(game.players[1].nominationUUID).toBe(false);
+      expect(game.players[2].nominationUUID).toBe(false);
+      expect(isNominationsFinished(game)).toBe(true);
+      expect(game.lynchDone).toBe(false);
+      expect(game.phase).toBe(Phase.DAY);
+      // exactly one step: nobody voted yet
+      expect(game.players[1].voteTargetUUID).toBeNull();
+    });
+
+    it("resolves a nomination stage without any candidate to 'nobody lynched'", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
+
+      VoteHandler.forceAdvance(game);
+
+      expect(isNominationsFinished(game)).toBe(true);
+      expect(game.lynchDone).toBe(true);
+      expect(game.lastVotedOutUUID).toBeNull();
+    });
+
+    it("resolves the trial stage with missing votes as abstains", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      game.players[2].nominationUUID = false;
+      VoteHandler.castLynchVote(game, game.players[0], "p1");
+
+      VoteHandler.forceAdvance(game);
+
+      expect(game.players[1].voteTargetUUID).toBe(false);
+      expect(game.players[2].voteTargetUUID).toBe(false);
+      expect(game.lynchDone).toBe(true);
+      expect(game.lastVotedOutUUID).toBe("p1");
+      expect(game.players[1].isAlive).toBe(false);
+      expect(game.phase).toBe(Phase.DAY);
+    });
+
+    it("starts the night after the lynch is done", () => {
+      const game = createGameWithPlayers(3);
+      setRoles(game, [Role.WEREWOLF, Role.VILLAGER, Role.VILLAGER]);
+      game.phase = Phase.DAY;
+      game.players.forEach(p => p.nominationUUID = false);
+      game.lynchDone = true;
+      game.players.forEach(p => p.readyForNight = true);
+
+      VoteHandler.forceAdvance(game);
+
+      expect(game.phase).toBe(Phase.NIGHT);
+      expect(game.round).toBe(1);
+      expect(game.activeNightRole).toBe(Role.WEREWOLF);
+      expect(game.lynchDone).toBe(false);
+      expect(game.players.every(p => !p.readyForNight)).toBe(true);
+    });
+
+    it("does nothing outside DAY and SHERIFF_ELECTION", () => {
+      const game = createGameWithPlayers(3);
+      setRoles(game, [Role.WEREWOLF, Role.VILLAGER, Role.VILLAGER]);
+      game.phase = Phase.NIGHT;
+      game.round = 2;
+
+      VoteHandler.forceAdvance(game);
+
+      expect(game.phase).toBe(Phase.NIGHT);
+      expect(game.round).toBe(2);
+    });
+
+    it("resolves an unresolved sheriff election without a candidate as 'no sheriff'", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.managerUUID = "p0";
+
+      VoteHandler.forceAdvance(game);
+
+      expect(isNominationsFinished(game)).toBe(true);
+      expect(game.sheriffElectionDone).toBe(true);
+      expect(game.sheriffUUID).toBeNull();
+      // one step only: still waiting for the GM to accept/continue
+      expect(game.phase).toBe(Phase.SHERIFF_ELECTION);
+    });
+
+    it("resolves an unresolved sheriff election with a candidate", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = false;
+      game.players[2].nominationUUID = false;
+      VoteHandler.castSheriffVote(game, game.players[0], "p1");
+
+      VoteHandler.forceAdvance(game);
+
+      expect(game.sheriffElectionDone).toBe(true);
+      expect(game.sheriffUUID).toBe("p1");
+      expect(game.phase).toBe(Phase.SHERIFF_ELECTION);
+    });
+
+    it("moves a resolved but unaccepted sheriff election to DAY", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.sheriffElectionDone = true;
+      game.sheriffUUID = "p1";
+      game.players[0].voteTargetUUID = "p1";
+      game.players[0].nominationUUID = "p1";
+
+      VoteHandler.forceAdvance(game);
+
+      expect(game.phase).toBe(Phase.DAY);
+      expect(game.sheriffElectionDone).toBe(true);
+      expect(game.sheriffUUID).toBe("p1");
+      expect(game.players[0].voteTargetUUID).toBeNull();
+      expect(game.players[0].nominationUUID).toBeNull();
     });
   });
 });

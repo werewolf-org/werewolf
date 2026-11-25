@@ -30,10 +30,12 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
     let cupidSecondLoverUUID = null;
     const cupid = game.players.find((p) => p.role == Role.CUPID);
     if(cupid && cupid.nightAction) {
-        cupidSelectedLovers = true;
         const firstLover = game.players.find(p => p.playerUUID === (cupid.nightAction as any).firstPlayerUUID);
         const secondLover = game.players.find(p => p.playerUUID === (cupid.nightAction as any).secondPlayerUUID);
-        if(player.playerUUID === firstLover?.playerUUID || player.playerUUID === secondLover?.playerUUID || player.playerUUID === cupid.playerUUID) {
+        const isInvolved = player.playerUUID === firstLover?.playerUUID || player.playerUUID === secondLover?.playerUUID || player.playerUUID === cupid.playerUUID;
+        // The game manager needs this to trigger the narration line, everyone else must not learn a Cupid exists
+        if(isInvolved || player.playerUUID === game.managerUUID) cupidSelectedLovers = true;
+        if(isInvolved) {
             cupidFirstLoverConfirmed = firstLover?.lovePartnerConfirmed ?? false;
             cupidSecondLoverConfirmed = secondLover?.lovePartnerConfirmed ?? false;
             cupidFirstLoverUUID = firstLover?.playerUUID;

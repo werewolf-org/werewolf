@@ -159,6 +159,16 @@ describe("night.selectors", () => {
       expect(getNextToWakeUp(game, false)).toBeNull();
     });
 
+    it("does not restart the night when the current role is no longer in it", () => {
+      const game = createGameWithPlayers(4);
+      setRoles(game, [Role.CUPID, Role.WEREWOLF, Role.SEER, Role.WITCH]);
+      game.round = 0;
+      // the only seer died / was skipped, so SEER is not part of this night anymore
+      game.players[2].isAlive = false;
+      game.activeNightRole = Role.SEER;
+      expect(getNextToWakeUp(game, false)).toBe(Role.WITCH);
+    });
+
     it("returns null when no roles qualify", () => {
       const game = createGameWithPlayers(1);
       setRoles(game, [Role.VILLAGER]);
@@ -204,10 +214,38 @@ describe("night.selectors", () => {
       );
     });
 
-    it("passes when player has correct role that wakes up", () => {
-      const game = createMockGame({ phase: Phase.NIGHT });
+    it("passes when player has correct role that wakes up and it is their turn", () => {
+      const game = createMockGame({ phase: Phase.NIGHT, activeNightRole: Role.SEER });
       const player = createMockPlayer({ role: Role.SEER });
       expect(() => checkPlayerNightRole(game, player, Role.SEER)).not.toThrow();
+    });
+
+    it("throws when another role is the active night role", () => {
+      const game = createMockGame({ phase: Phase.NIGHT, activeNightRole: Role.CUPID });
+      const player = createMockPlayer({ role: Role.SEER });
+      expect(() => checkPlayerNightRole(game, player, Role.SEER)).toThrow(
+        "It is not the turn of SEER"
+      );
+    });
+
+    it("throws when no role is active at night", () => {
+      const game = createMockGame({ phase: Phase.NIGHT, activeNightRole: null });
+      const player = createMockPlayer({ role: Role.SEER });
+      expect(() => checkPlayerNightRole(game, player, Role.SEER)).toThrow(
+        "It is not the turn of SEER"
+      );
+    });
+
+    it("throws when a dead player tries a night action", () => {
+      const game = createMockGame({ phase: Phase.NIGHT, activeNightRole: Role.SEER });
+      const player = createMockPlayer({ role: Role.SEER, isAlive: false });
+      expect(() => checkPlayerNightRole(game, player, Role.SEER)).toThrow("is dead");
+    });
+
+    it("throws when a dead lover tries to confirm the bond (role=null path)", () => {
+      const game = createMockGame({ phase: Phase.NIGHT, activeNightRole: Role.CUPID });
+      const player = createMockPlayer({ isAlive: false });
+      expect(() => checkPlayerNightRole(game, player, null)).toThrow("is dead");
     });
   });
 });

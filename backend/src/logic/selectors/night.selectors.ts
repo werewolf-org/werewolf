@@ -61,18 +61,25 @@ export const getNextToWakeUp = (game: Game, first: boolean): Role | null => {
 
     if(first) return wakeOrder[0] ?? null;
 
-    const currentIndex = game.activeNightRole ? wakeOrder.indexOf(game.activeNightRole) : 0;
-    const nextActiveRole = wakeOrder[currentIndex + 1];
-    return nextActiveRole ?? null;
+    // Advance by night order, not by index: the current role may be missing from wakeOrder
+    // (e.g. its only player died or the GM skipped it), which must not restart the night.
+    const currentRole = game.activeNightRole;
+    if(!currentRole) return wakeOrder[0] ?? null;
+    const currentNightOrder = ROLES[currentRole].nightOrder;
+    return wakeOrder.find((role) => ROLES[role].nightOrder > currentNightOrder) ?? null;
 }
 
 // if role === null: Role does not matter
 // e.g. in Cupid phase also non cupid players do actions (lovePartnerConfirms)
 export const checkPlayerNightRole = (game: Game, player: Player, role: Role | null): void => {
     if(game.phase !== Phase.NIGHT) throw new Error(`Game ${game.gameId} is not current in Night Phase, cannot do Night Action!`);
+    // dead players never act at night; checked before the role-less escape so it also covers lover confirms
+    if(!player.isAlive) throw new Error(`Player ${player.playerUUID} is dead, so they cannot do a Night Action!`);
     if(!role) return;
 
     // check if player exists & has correct role
     if(player.role !== role) throw new Error(`Player with UUID ${player.playerUUID} does not have the correct role to do the night action of the role (${player.role} !== ${role})`);
     if(ROLES[player.role].wakesUp === false) throw new Error(`Player ${player.playerUUID} has role ${player.role}, but it doesnt wake up in the night`);
+    // a night action is only allowed during that role's own sub-turn
+    if(game.activeNightRole !== role) throw new Error(`It is not the turn of ${role} in Game ${game.gameId}, the active night role is ${game.activeNightRole}!`);
 }

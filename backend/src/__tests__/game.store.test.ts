@@ -42,12 +42,26 @@ describe("game.store", () => {
     expect(store.getGame(game.gameId)).toBeUndefined();
   });
 
+  it("does not overwrite an existing game", () => {
+    const store = GameStore.getInstance();
+    const original = createMockGame({ gameId: "ABCD" });
+    store.createGame(original);
+    expect(() => store.createGame(createMockGame({ gameId: "ABCD", round: 7 }))).toThrow("already exists");
+    expect(store.getGame("ABCD")).toBe(original);
+  });
+
+  it("reports whether a game id is taken", () => {
+    const store = GameStore.getInstance();
+    expect(store.hasGame("ABCD")).toBe(false);
+    store.createGame(createMockGame({ gameId: "ABCD" }));
+    expect(store.hasGame("ABCD")).toBe(true);
+  });
+
   it("clears all games", () => {
     const store = GameStore.getInstance();
-    store.createGame(createMockGame());
-    store.createGame(createMockGame());
+    store.createGame(createMockGame({ gameId: "AAAA" }));
+    store.createGame(createMockGame({ gameId: "BBBB" }));
     store.clear();
-    // getGame won't find anything since gameID is random
     const keys = Array.from((store as any).games.keys());
     expect(keys).toHaveLength(0);
   });

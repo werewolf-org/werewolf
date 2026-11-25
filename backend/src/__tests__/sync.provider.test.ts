@@ -155,11 +155,24 @@ describe("sync.provider", () => {
     game.players[1].lovePartner = "p2";
     game.players[2].lovePartner = "p1";
     const state = getLocalPlayerState(game, game.players[3]) as any;
-    expect(state.cupidSelectedLovers).toBe(true);
+    // An uninvolved player may not even learn that a Cupid exists
+    expect(state.cupidSelectedLovers).toBe(false);
     expect(state.cupidFirstLoverUUID).toBeNull();
     expect(state.cupidSecondLoverUUID).toBeNull();
     expect(state.cupidFirstLoverConfirmed).toBe(false);
     expect(state.cupidSecondLoverConfirmed).toBe(false);
+  });
+
+  it("tells the game manager that the cupid picked, for the narration", () => {
+    const game = createGameWithPlayers(4, { managerUUID: "p3" });
+    setRoles(game, [Role.CUPID, Role.VILLAGER, Role.VILLAGER, Role.VILLAGER]);
+    game.players[0].nightAction = { firstPlayerUUID: "p1", secondPlayerUUID: "p2" };
+    game.players[1].lovePartner = "p2";
+    game.players[2].lovePartner = "p1";
+    // p3 is the manager and is not involved in the bond: they still need the flag to play the narration
+    const state = getLocalPlayerState(game, game.players[3]) as any;
+    expect(state.cupidSelectedLovers).toBe(true);
+    expect(state.cupidFirstLoverUUID).toBeNull();
   });
 
   it("shows witch potion usage to witch", () => {

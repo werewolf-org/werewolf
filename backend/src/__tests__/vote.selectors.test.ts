@@ -3,6 +3,7 @@ import { createMockGame, createMockPlayer, createGameWithPlayers, setRoles } fro
 import { Phase } from "@shared/phases.js";
 import { Role } from "@shared/roles.js";
 import {
+  getActingPlayers,
   isVotingComplete,
   getVoteResult,
   isNominationsFinished,
@@ -58,6 +59,22 @@ describe("vote.selectors", () => {
       game.players[0].isAlive = false;
       expect(isVotingComplete(game)).toBe(true);
     });
+
+    it("does not count an undefined payload as a vote (B14)", () => {
+      const game = createGameWithPlayers(2);
+      game.players[0].voteTargetUUID = "p1";
+      game.players[1].voteTargetUUID = undefined as any; // socket.io dropped the key
+      expect(isVotingComplete(game)).toBe(false);
+    });
+
+    it("a disconnected player still blocks completion (getActingPlayers includes them)", () => {
+      const game = createGameWithPlayers(3);
+      game.players[0].voteTargetUUID = "p1";
+      game.players[1].socketId = null; // disconnected, voteTargetUUID stays null
+      game.players[2].voteTargetUUID = "p0";
+      expect(getActingPlayers(game)).toEqual(game.players);
+      expect(isVotingComplete(game)).toBe(false);
+    });
   });
 
   describe("getVoteResult", () => {
@@ -112,6 +129,20 @@ describe("vote.selectors", () => {
       game.players[1].nominationUUID = null;
       game.players[1].isAlive = false;
       expect(isNominationsFinished(game)).toBe(true);
+    });
+
+    it("does not count an undefined payload as a nomination (B14)", () => {
+      const game = createGameWithPlayers(2);
+      game.players[0].nominationUUID = "p1";
+      game.players[1].nominationUUID = undefined as any;
+      expect(isNominationsFinished(game)).toBe(false);
+    });
+
+    it("a disconnected player still blocks completion", () => {
+      const game = createGameWithPlayers(2);
+      game.players[0].nominationUUID = "p1";
+      game.players[1].socketId = null;
+      expect(isNominationsFinished(game)).toBe(false);
     });
   });
 

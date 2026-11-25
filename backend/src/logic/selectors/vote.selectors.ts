@@ -1,8 +1,18 @@
 import type { Game, Player } from "../../models.js";
 
+// A cast is either a target UUID or an explicit abstain (false).
+// `undefined` means "nothing was sent" (socket.io drops undefined keys) and must not count as a cast.
+export const isVoteCast = (target: string | false | null | undefined): boolean =>
+    target === false || typeof target === "string";
+
+// Players whose action is required to complete a stage: every living player.
+// A disconnected player (socketId === null) still counts, so a phone that locks mid-vote blocks
+// completion on purpose and the game manager has to acknowledge it with the force-advance escape hatch.
+export const getActingPlayers = (game: Game): Player[] =>
+    game.players.filter(p => p.isAlive);
+
 export const isVotingComplete = (game: Game): boolean => {
-    const alivePlayers = game.players.filter(p => p.isAlive);
-    return alivePlayers.every(p => p.voteTargetUUID !== null);
+    return getActingPlayers(game).every(p => isVoteCast(p.voteTargetUUID));
 }
 
 export const getVoteResult = (game: Game): Record<string, string | false | null> | null => {
@@ -14,8 +24,7 @@ export const getVoteResult = (game: Game): Record<string, string | false | null>
         );
 }
 export const isNominationsFinished = (game: Game): boolean => {
-    const alivePlayers = game.players.filter(p => p.isAlive);
-    return alivePlayers.every(p => p.nominationUUID !== null);
+    return getActingPlayers(game).every(p => isVoteCast(p.nominationUUID));
 }
 export const getNominations = (game: Game): Record<string, string> | null => {
     return Object.fromEntries(

@@ -27,11 +27,11 @@ export function registerSocketEvents(io: Server): void {
 
         socket.on('changeName', withError(({ gameId, playerName }) => gameManager.changeName(gameId, socket.id, playerName)));
 
-        socket.on('closeJoining', withError(({ gameId }) => gameManager.closeJoining(gameId)));
+        socket.on('closeJoining', withError(({ gameId }) => gameManager.closeJoining(gameId, socket.id)));
 
-        socket.on('roleDistribution', withError(({ gameId, roles }) => gameManager.roleDistribution(gameId, roles)));
+        socket.on('roleDistribution', withError(({ gameId, roles }) => gameManager.roleDistribution(gameId, socket.id, roles)));
 
-        socket.on('startGame', withError(({ gameId }) => gameManager.startGame(gameId)));
+        socket.on('startGame', withError(({ gameId }) => gameManager.startGame(gameId, socket.id)));
 
         // WEREWOLF
         socket.on('werewolfVote', withError(({ gameId, targetUUID }) => gameManager.nightAction(gameId, socket.id, Role.WEREWOLF, WerewolfHandler.handleVote, targetUUID)));
@@ -59,9 +59,12 @@ export function registerSocketEvents(io: Server): void {
 
         socket.on('acceptSheriffRole', withError(({ gameId }) => gameManager.acceptSheriffRole(gameId, socket.id)));
 
+        // Game manager escape hatch: advance a stuck phase by one step
+        socket.on('managerAdvance', withError(({ gameId }) => gameManager.managerAdvance(gameId, socket.id)));
+
         socket.on('disconnect', () => {
             console.log('User disconnected:', socket.id);
-            // TODO: possibly remove socketid from player in game-store
+            gameManager.handleDisconnect(socket.id);
         });
     });
 }

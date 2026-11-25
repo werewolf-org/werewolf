@@ -1,14 +1,25 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createMockGame, createMockPlayer, createGameWithPlayers } from "./test-helpers.js";
 import { Phase } from "@shared/phases.js";
 import { Role } from "@shared/roles.js";
-import { LobbyHander } from "../logic/handlers/lobby.handler.js";
+import { LobbyHander, MIN_PLAYERS } from "../logic/handlers/lobby.handler.js";
+import { GameStore } from "../store/game.store.js";
 
 describe("lobby.handler", () => {
+  beforeEach(() => {
+    GameStore.getInstance().clear();
+  });
+
   describe("createGame", () => {
     it("creates a game with a 4-char uppercase ID", () => {
       const game = LobbyHander.createGame();
       expect(game.gameId).toMatch(/^[A-Z0-9]{4}$/);
+    });
+
+    it("always produces IDs of the expected length", () => {
+      for (let i = 0; i < 200; i++) {
+        expect(LobbyHander.createGame().gameId).toHaveLength(4);
+      }
     });
 
     it("initializes all default fields", () => {
@@ -31,6 +42,21 @@ describe("lobby.handler", () => {
         ids.add(LobbyHander.createGame().gameId);
       }
       expect(ids.size).toBe(20);
+    });
+
+    it("skips game IDs that already exist in the store", () => {
+      const store = GameStore.getInstance();
+      // every Math.random() call below returns 0 -> "AAAA", then 0.5 -> "SSSS"
+      const randomSpy = vi.spyOn(Math, "random");
+      for (let i = 0; i < 4; i++) randomSpy.mockReturnValueOnce(0);
+      for (let i = 0; i < 4; i++) randomSpy.mockReturnValueOnce(0.5);
+      store.createGame(createMockGame({ gameId: "AAAA" }));
+
+      const game = LobbyHander.createGame();
+      randomSpy.mockRestore();
+
+      expect(game.gameId).not.toBe("AAAA");
+      expect(game.gameId).toBe("SSSS");
     });
   });
 
@@ -110,7 +136,7 @@ describe("lobby.handler", () => {
   describe("closeJoining", () => {
     it("transitions to ROLE_SELECTION", () => {
       const game = LobbyHander.createGame();
-      game.players.push(createMockPlayer({ displayName: "Alice" }));
+      for (let i = 0; i < MIN_PLAYERS; i++) game.players.push(createMockPlayer({ displayName: `Alice ${i}` }));
       LobbyHander.closeJoining(game);
       expect(game.phase).toBe(Phase.ROLE_SELECTION);
     });
@@ -118,12 +144,25 @@ describe("lobby.handler", () => {
     it("auto-names unnamed players sequentially", () => {
       const game = LobbyHander.createGame();
       game.players.push(createMockPlayer({ displayName: "Alice" }));
-      game.players.push(createMockPlayer({ displayName: "" }));
-      game.players.push(createMockPlayer({ displayName: "" }));
+      for (let i = 0; i < MIN_PLAYERS - 1; i++) game.players.push(createMockPlayer({ displayName: "" }));
       LobbyHander.closeJoining(game);
       expect(game.players[0].displayName).toBe("Alice");
-      expect(game.players[1].displayName).toBe("Unnamed Player 1");
-      expect(game.players[2].displayName).toBe("Unnamed Player 2");
+      for (let i = 1; i < MIN_PLAYERS; i++) {
+        expect(game.players[i].displayName).toBe(`Unnamed Player ${i}`);
+      }
+    });
+
+    it("rejects a game below the minimum player count", () => {
+      const game = LobbyHander.createGame();
+      for (let i = 0; i < MIN_PLAYERS - 1; i++) game.players.push(createMockPlayer());
+      expect(() => LobbyHander.closeJoining(game)).toThrow(`at least ${MIN_PLAYERS} are required`);
+      expect(game.phase).toBe(Phase.LOBBY);
+    });
+
+    it("rejects a game with no players at all", () => {
+      const game = LobbyHander.createGame();
+      expect(() => LobbyHander.closeJoining(game)).toThrow(`at least ${MIN_PLAYERS} are required`);
+      expect(game.phase).toBe(Phase.LOBBY);
     });
 
     it("throws when already not in LOBBY", () => {
@@ -160,6 +199,43 @@ describe("lobby.handler", () => {
       game.players = undefined as any;
       expect(() => LobbyHander.roleDistribution(game, { [Role.VILLAGER]: 0 })).toThrow("No players are defined");
     });
+
+    it("rejects a distribution without any werewolf", () => {
+      const game = createGameWithPlayers(4);
+      game.phase = Phase.ROLE_SELECTION;
+      expect(() => LobbyHander.roleDistribution(game, { [Role.VILLAGER]: 3, [Role.SEER]: 1 }))
+        .toThrow("at least one Werewolf");
+      expect(game.players.every((p) => p.role === null)).toBe(true);
+      expect(game.phase).toBe(Phase.ROLE_SELECTION);
+    });
+
+    it("rejects unknown role keys", () => {
+      const game = createGameWithPlayers(4);
+      game.phase = Phase.ROLE_SELECTION;
+      expect(() => LobbyHander.roleDistribution(game, { FOO: 4 } as any)).toThrow("Unknown role FOO");
+      expect(game.players.every((p) => p.role === null)).toBe(true);
+      expect(game.phase).toBe(Phase.ROLE_SELECTION);
+    });
+
+    it("rejects negative or fractional counts", () => {
+      const game = createGameWithPlayers(4);
+      game.phase = Phase.ROLE_SELECTION;
+      expect(() => LobbyHander.roleDistribution(game, { [Role.WEREWOLF]: -1, [Role.VILLAGER]: 5 }))
+        .toThrow("Invalid amount -1");
+      expect(() => LobbyHander.roleDistribution(game, { [Role.WEREWOLF]: 1.5, [Role.VILLAGER]: 2.5 }))
+        .toThrow("Invalid amount 1.5");
+      expect(game.players.every((p) => p.role === null)).toBe(true);
+      expect(game.phase).toBe(Phase.ROLE_SELECTION);
+    });
+
+    it("rejects a wrong total and leaves every player untouched", () => {
+      const game = createGameWithPlayers(4);
+      game.phase = Phase.ROLE_SELECTION;
+      expect(() => LobbyHander.roleDistribution(game, { [Role.WEREWOLF]: 1, [Role.VILLAGER]: 2 }))
+        .toThrow("does not match number of players");
+      expect(game.players.every((p) => p.role === null)).toBe(true);
+      expect(game.phase).toBe(Phase.ROLE_SELECTION);
+    });
   });
 
   describe("startGame", () => {
@@ -178,11 +254,15 @@ describe("lobby.handler", () => {
       expect(() => LobbyHander.startGame(game)).toThrow("not currently in the right phase");
     });
 
-    it("throws when no active night role found", () => {
-      const game = createGameWithPlayers(1);
+    it("leaves the game in DISTRIBUTION when no role wakes up", () => {
+      const game = createGameWithPlayers(2);
       game.players[0].role = Role.VILLAGER;
+      game.players[1].role = Role.LITTLE_GIRL;
       game.phase = Phase.DISTRIBUTION;
       expect(() => LobbyHander.startGame(game)).toThrow("does not have an active night role");
+      expect(game.phase).toBe(Phase.DISTRIBUTION);
+      expect(game.activeNightRole).toBeNull();
+      expect(game.players[0].role).toBe(Role.VILLAGER);
     });
   });
 });
