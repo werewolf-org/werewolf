@@ -67,6 +67,19 @@ The first attempt also guarded every phase swap and was reverted: it swallowed l
 (it broke 10 of 18 browser tests, and a human tapping a wolf target the instant the screen changes has
 done nothing wrong). Route changes are the case that was actually observed.
 
+## Product gaps the browser suite found (not fixed)
+
+- **No disconnect indicator on the game route.** The cold-start gate only covers the initial connect. A
+  running game that loses its socket shows nothing: the screen simply freezes, and with socket.io's ping
+  timeout a real radio loss is only noticed after ~45s. The player has no way to tell "waiting" from
+  "broken". B15 fixed the reconnection; the visible half was never built.
+- **A player who was offline during DISTRIBUTION can never learn their role.** Roles arrive on the
+  distribution card only. If the GM starts without that seat (it does not wait), the returning player
+  lands in NIGHT with the correct role but no way to see it — night views only show the active role's
+  UI, and a villager sees "Close your eyes…".
+- **A seat that never returns keeps its distributed role forever.** There is no kick/remove path, only
+  the GM escape hatch to skip the turn (see the accepted limitations above).
+
 
 
 ## WP1 — No identity & authorization layer

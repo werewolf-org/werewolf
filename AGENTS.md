@@ -152,6 +152,14 @@ E2E_BACKEND_PORT=3311 E2E_FRONTEND_PORT=5374 npm run test:e2e
 - `e2e/specs/gameplay.spec.ts` — lobby, an acting role's night turn, a bystander, the day vote, the GM
   escape hatch.
 - `e2e/specs/reconnect.spec.ts` — reload in the lobby and mid-game, a second tab not stealing a seat.
+- `e2e/specs/disconnect-phases.spec.ts` — **the disconnection matrix**: every phase (lobby, role
+  selection, distribution, night as bystander and on your own turn, sheriff election, all three day
+  stages, game over) against four shapes of loss: a network blip (offline + transport close, then a new
+  socket id), a reload, a closed tab reopened in the same context, and the GM going offline. Asserts
+  catch-up rather than stale state, seat/role identity, and that a pending own turn does not silently
+  advance. Note: `setOffline` alone does not drop an open websocket — a real radio loss is only noticed
+  at socket.io's ping timeout (~45s), so the spec closes the transport explicitly to be honest about
+  what it proves.
 - `e2e/specs/robustness.spec.ts` — failed join, back button during the server gate, double-tap create.
 - `e2e/specs/escaping.spec.ts` — an HTML payload in a player name renders as text.
 
@@ -181,6 +189,17 @@ audio pacing or real device behaviour.
 | `e2e/reconnect.test.ts` | 5 | Reload mid-day, network blip with new socket id, lobby refresh, post-lobby rejoin, disconnect mid-night |
 | `e2e/security.test.ts` | 9 | Manager-only actions, stranger socket, out-of-turn, dead players, target validation, snapshot leaks, escape hatch, intentional death reveal |
 | `e2e/fuzz.test.ts` | 2 | Seeded random full games: 3 per run by default, invariant checking after every sync, hard-branch coverage report |
+
+Browser suite (`e2e/specs/`, Playwright, ~1.8 min):
+
+| File | Tests | Coverage |
+|---|---|---|
+| `wiring.spec.ts` | 2 | Four phones into the first night; bad game id shows the error card |
+| `gameplay.spec.ts` | 5 | Lobby, acting role's night turn, bystander, full day→night 2, GM escape hatch |
+| `reconnect.spec.ts` | 4 | Reload in lobby and mid-game, second context, error-card recovery |
+| `disconnect-phases.spec.ts` | 14 | Disconnection matrix: 10 phases × network blip, reload, reopened tab, GM offline |
+| `robustness.spec.ts` | 5 | Failed join, gate overlay, double-tap create, stray-tap guard, GM-only control |
+| `escaping.spec.ts` | 2 | HTML payload in a player name inert in lobby, day and death popup |
 
 
 ### Test Helpers
