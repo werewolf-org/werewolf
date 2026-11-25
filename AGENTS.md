@@ -85,23 +85,48 @@ The backend has comprehensive unit tests for all core logic, written with **Vite
 ### Running Tests
 ```bash
 cd backend
-npm test         # Run all tests once
+npm test         # Run all tests once (unit + e2e)
+npm run test:e2e # Only the end-to-end suite
 npx vitest       # Run in watch mode
 npx vitest run src/__tests__/vote.selectors.test.ts  # Single file
 ```
 
+### End-to-end harness (`src/__tests__/e2e/`)
+Starts a real server on an ephemeral port (`startGameServer(0)` from `src/server.ts`) and drives it with
+real `socket.io-client`s, one per player. Assertions are made on the **tailored snapshots** a client
+receives, because that is everything a player ever sees.
+
+- `harness.ts` — `TestGame` (create a lobby with N clients, close joining, distribute, start, find a
+  client by role) and `Client` (`waitFor`, `waitForPhase`, `waitForTurn`, `dropAndReconnect`,
+  `errors`). Clients re-emit `joinGame` on reconnect exactly like the frontend does.
+- `smoke.test.ts` — proves the harness itself works. If it is red, no other e2e result means anything.
+- `game-flow.test.ts` — full games: night resolution, sheriff election, day vote, all win conditions.
+- `reconnect.test.ts` — reload, network blip, rejoin, disconnect mid-night.
+- `security.test.ts` — manager-only actions, out-of-turn actions, dead players, target validation,
+  snapshot leaks.
+
+Rules: roles are assigned randomly, so always discover them from snapshots (`state.role`), never assume
+an assignment. Synchronise with `waitFor*`, never with sleeps. Always `close()` the game in `afterEach`.
+
+
 ### Test Coverage
 | File | Tests | Coverage |
 |---|---|---|
-| `vote.selectors.test.ts` | 26 | `isVotingComplete`, `getVoteResult`, `getNominations`, `getNominatedPlayers`, `getVotingWinner` (ties, abstains, sheriff tie-breaker) |
-| `night.selectors.test.ts` | 26 | `getWerewolfVotes`, `getWerewolfVictimUUID`, `getNextToWakeUp`, `checkPlayerNightRole` |
-| `vote.handler.test.ts` | 34 | `nominate`, `castLynchVote`, `castSheriffVote`, `readyForNight`, `acceptSheriffRole` (auto-resolution, love partner chain deaths) |
-| `lobby.handler.test.ts` | 21 | `createGame`, `createNewPlayer`, `roleDistribution`, `startGame`, `closeJoining`, `changeName` |
-| `night.handler.test.ts` | 8 | `nextRole`, night resolution logic (witch heal, witch kill, lover chain, split votes, red lady) |
-| `role.handler.test.ts` | 28 | Werewolf, Seer, Cupid, Witch, RedLady handlers |
-| `game.store.test.ts` | 8 | `GameStore` singleton, CRUD, `cleanupOldGames` |
-| `sync.provider.test.ts` | 22 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info |
+| `vote.selectors.test.ts` | 30 | `isVotingComplete`, `getVoteResult`, `getNominations`, `getNominatedPlayers`, `getVotingWinner` (ties, abstains, sheriff tie-breaker), `getActingPlayers` |
+| `night.selectors.test.ts` | 31 | `getWerewolfVotes`, `getWerewolfVictimUUID`, `getNextToWakeUp` (night order, first-night-only roles), `checkPlayerNightRole` (turn, liveness) |
+| `vote.handler.test.ts` | 61 | `nominate`, `castLynchVote`, `castSheriffVote`, `readyForNight`, `acceptSheriffRole`, `forceAdvance`, `handleSheriffDeath` |
+| `lobby.handler.test.ts` | 29 | `createGame`, `createNewPlayer`, `roleDistribution` validation, `startGame` atomicity, `closeJoining`, `changeName`, game id uniqueness |
+| `night.handler.test.ts` | 18 | `nextRole`, `forceNextRole`, night resolution (witch heal/kill, lover chain, red lady, sheriff death) |
+| `role.handler.test.ts` | 48 | Werewolf, Seer, Cupid, Witch, RedLady handlers incl. target and turn validation |
+| `game.store.test.ts` | 10 | `GameStore` singleton, CRUD, `hasGame`, `cleanupOldGames` |
+| `game.manager.test.ts` | 17 | Manager authority, join/rejoin/disconnect, dead players, `managerAdvance` |
+| `sync.provider.test.ts` | 23 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info |
 | `scenarios.test.ts` | 20 | **Full game simulations**: multi-round games, couple wins, all-abstain, witch dual potion, sheriff tie-breaker, red lady death, dead-lock scenarios |
+| `e2e/smoke.test.ts` | 2 | The harness itself: lobby to first night, per-player snapshots |
+| `e2e/game-flow.test.ts` | 11 | Complete nights (heal, poison, red lady), sheriff election, full day, all three win conditions, sheriff death badge clear, dead-GM election exit |
+| `e2e/reconnect.test.ts` | 5 | Reload mid-day, network blip with new socket id, lobby refresh, post-lobby rejoin, disconnect mid-night |
+| `e2e/security.test.ts` | 9 | Manager-only actions, stranger socket, out-of-turn, dead players, target validation, snapshot leaks, escape hatch, intentional death reveal |
+
 
 ### Test Helpers
 `test-helpers.ts` provides mock factories:

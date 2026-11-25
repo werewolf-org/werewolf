@@ -42,10 +42,13 @@ const lynchDone = (game: Game, lastVotedOutUUID: string | null): void => {
 
 const startNight = (game: Game): void => {
     // Resolve the first night role before touching the state, so a missing night role cannot leave
-    // the game in NIGHT with no active role (half-advanced).
-    const nextActiveRole = getNextToWakeUp(game, true);
+    // the game in NIGHT with no active role (half-advanced). The round must be advanced in the same
+    // breath: `getNextToWakeUp` decides "first night only" roles (cupid) from `game.round`, so
+    // querying with the old round would schedule the cupid again on night 2.
+    const nextRound = game.round + 1;
+    const nextActiveRole = getNextToWakeUp({ ...game, round: nextRound }, true);
     if(!nextActiveRole) throw new Error(`Game with ID ${game.gameId} cannot go to Night, no first night role`)
-    game.round = game.round + 1;
+    game.round = nextRound;
     game.phase = Phase.NIGHT;
     game.activeNightRole = nextActiveRole;
     game.players.forEach(p => p.voteTargetUUID = null);

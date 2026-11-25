@@ -39,10 +39,24 @@ packages below are ordered by root cause rather than by file.
 
 **Known remaining gaps (not bugs from this ledger):**
 - No kick / remove-player path: `handleDisconnect` clears the seat's `socketId` but the player stays in the game.
-- No end-to-end test coverage: the harness is Stage 2. `game.manager.test.ts` is new and covers the manager seam, but nothing drives real sockets yet.
 - The deployed bundle still takes its API origin from `VITE_API_URL` at build time; a `predeploy` guard now fails the deploy if it is unset or localhost.
 
 ---
+
+## Found by the e2e harness after the fix pass
+
+**R1 [BLOCKER, regression] `startNight` scheduled the cupid again on night 2, freezing every game.**
+The B25 fix moved `getNextToWakeUp(game, true)` above `game.round + 1` so that a missing night role would
+throw before any mutation. But `getNextToWakeUp` decides "first night only" roles (cupid) from `game.round`,
+so the query ran while the round was still 0: night 2 woke the cupid, `handleBindLovers` rejected with
+"round is already 1", and nothing could advance the turn. With no GM escape hatch before this session, that
+is a guaranteed freeze on the second night of every game.
+
+Introduced by our own fix pass, invisible to 287 unit tests (they call `getNextToWakeUp` with a hand-built
+round), caught by `game-flow.test.ts` the first time the harness ran a full game. Fixed by computing the
+first role against the future round (`{ ...game, round: nextRound }`), which keeps validate-before-mutate
+and restores the semantics. Pinned by the "night 2 must not wake the cupid" assertion.
+
 
 
 ## WP1 — No identity & authorization layer
