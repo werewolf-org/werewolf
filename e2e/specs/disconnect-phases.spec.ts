@@ -168,18 +168,13 @@ const stepKey = (snap: Snapshot | null): string =>
 // --- offline / online -------------------------------------------------------------------
 
 /**
- * Shape A: the phone loses its signal. The context really goes offline, the live socket.io
- * transport is dropped, and the test waits for the app itself to notice (its own console
- * logs: the socket disconnect plus a failed reconnection attempt). Everything that follows
- * is asserted against that evidence, never against a sleep.
+ * The bare network cut: the context really goes offline, the live socket.io transport is
+ * dropped, and the test waits for the app itself to notice (its own console logs: the socket
+ * disconnect plus a failed reconnection attempt). Works on any route, with or without a game,
+ * because the start page needs the same proof without owning a snapshot.
  */
-async function goOffline(table: Table, seat: Phone): Promise<Offline> {
+async function cutNetwork(seat: Phone): Promise<void> {
     const page = seat.page;
-    const before = await probeState(page);
-    const snap = await requireSnapshot(page, 'no snapshot before the disconnect');
-    const sid = before.sids[before.sids.length - 1];
-    expect(sid, 'socket.io never completed a handshake on this phone').toBeTruthy();
-
     await seat.context.setOffline(true);
     await expect
         .poll(() => page.evaluate(() => navigator.onLine), { message: 'the browser did not go offline' })
@@ -207,6 +202,17 @@ async function goOffline(table: Table, seat: Phone): Promise<Offline> {
             message: 'the app kept reaching the server while it was offline',
         })
         .toBe(true);
+}
+
+/** Shape A: a seat inside a running game loses its signal. */
+async function goOffline(table: Table, seat: Phone): Promise<Offline> {
+    const page = seat.page;
+    const before = await probeState(page);
+    const snap = await requireSnapshot(page, 'no snapshot before the disconnect');
+    const sid = before.sids[before.sids.length - 1];
+    expect(sid, 'socket.io never completed a handshake on this phone').toBeTruthy();
+
+    await cutNetwork(seat);
 
     return {
         sid: sid!,
@@ -379,6 +385,30 @@ async function dismissDeaths(page: Page): Promise<void> {
     await expect(overlay).toBeVisible();
     await page.locator('#close-death-popup').click();
     await expect(overlay).toBeHidden();
+}
+
+/**
+ * Cheapest legitimate route to GAME_OVER: escape-hatch through the unplayed night and the
+ * election, put the only wolf on trial and vote it out for real (village win).
+ */
+async function lynchTheWolf(table: Table): Promise<number> {
+    const wolfIndex = table.roles.findIndex((role) => roleEnum(role) === 'WEREWOLF');
+    expect(wolfIndex, `the 4-player preset must deal a Wolf, roles were ${table.roles.join(', ')}`).toBeGreaterThanOrEqual(0);
+
+    await advanceUntil(table, table.seats[1]!.page, (snap) => snap.phase === 'DAY');
+
+    const nominatorIndex = table.roles.findIndex((role, index) => index !== wolfIndex);
+    await nominate(table.seats[nominatorIndex]!.page, nameOf(wolfIndex));
+    for (const [index, seat] of table.seats.entries()) {
+        if (index === nominatorIndex) continue;
+        await nominate(seat.page, null);
+    }
+    for (const seat of table.seats) await waitUntilVisible(seat.page, '#day-voting-view');
+    for (const seat of table.seats) await voteFor(seat.page, nameOf(wolfIndex));
+
+    for (const seat of table.seats) await waitUntilVisible(seat.page, '#final-roles-list');
+    for (const seat of table.seats) await dismissDeaths(seat.page);
+    return wolfIndex;
 }
 
 // --- bookkeeping ------------------------------------------------------------------------
@@ -749,23 +779,7 @@ test.describe('disconnect and reconnect by phase', () => {
     test('GAME_OVER: the summary survives a blip and still shows every seat', async ({ browser }) => {
         test.slow();
         const table = await startTable(browser);
-        const wolfIndex = table.roles.findIndex((role) => roleEnum(role) === 'WEREWOLF');
-        expect(wolfIndex).toBeGreaterThanOrEqual(0);
-
-        await advanceUntil(table, table.seats[1]!.page, (snap) => snap.phase === 'DAY');
-
-        // Put the only wolf on trial, then really vote it out: village win.
-        const nominatorIndex = table.roles.findIndex((role, index) => index !== wolfIndex);
-        await nominate(table.seats[nominatorIndex]!.page, nameOf(wolfIndex));
-        for (const [index, seat] of table.seats.entries()) {
-            if (index === nominatorIndex) continue;
-            await nominate(seat.page, null);
-        }
-        for (const seat of table.seats) await waitUntilVisible(seat.page, '#day-voting-view');
-        for (const seat of table.seats) await voteFor(seat.page, nameOf(wolfIndex));
-
-        for (const seat of table.seats) await waitUntilVisible(seat.page, '#final-roles-list');
-        for (const seat of table.seats) await dismissDeaths(seat.page);
+        const wolfIndex = await lynchTheWolf(table);
         await expect(table.gm.locator('#winner-team-text')).toHaveText('The Village Wins!');
 
         const survivorIndex = [1, 2, 3].find((index) => index !== wolfIndex)!;
@@ -922,5 +936,115 @@ test.describe('disconnect and reconnect by phase', () => {
         await comeBack(table, gmSeat, offline);
         await advanceOnce(table.gm);
         expect(stepKey(await snapshot(intruder.page)), 'the rejected step never happened').not.toBe(keyBefore);
+    });
+
+    test('connection banner: shown while the game is offline, gone once the snapshot is back', async ({ browser }) => {
+        test.slow();
+        const table = await startTable(browser);
+        const player = table.seats[1]!;
+        await waitForNight(player.page);
+
+        // The element always exists; only its display is toggled.
+        await expect(player.page.locator('#connection-banner')).toHaveCount(1);
+        expect(await isVisible(player.page, '#connection-banner'), 'the banner must not be up while connected').toBe(false);
+
+        const offline = await goOffline(table, player);
+
+        // A lost socket must not look like "nobody has acted yet" any more.
+        await waitUntilVisible(player.page, '#connection-banner');
+        await expect(player.page.locator('#connection-banner')).toContainText('Reconnecting');
+
+        await comeBack(table, player, offline);
+
+        // Hidden again as soon as the reconnect landed, with the phase still on screen.
+        await expect(player.page.locator('#connection-banner')).toBeHidden();
+        await waitForNight(player.page);
+    });
+
+    test('connection banner: never shown on the start page, where no game is on screen', async ({ browser }) => {
+        const phone = await newPhone(browser);
+        phones.push(phone);
+        await instrument(phone.page);
+        watch(phone.page);
+
+        await phone.page.goto('/');
+        await expect(phone.page.locator('#create-game')).toBeVisible();
+
+        // Same real cut: the socket dies and the app cannot reach the server. There is just
+        // no game whose connection state the banner could report.
+        await cutNetwork(phone);
+        expect(
+            await isVisible(phone.page, '#connection-banner'),
+            'the banner must not appear before a game page exists',
+        ).toBe(false);
+        await expect(phone.page.locator('#create-game')).toBeVisible();
+    });
+
+    test('role chip: a player who was offline during distribution still learns their role', async ({ browser }) => {
+        test.slow();
+        const table = await openTable(browser, 4);
+        await waitForPointerReady(table.gm);
+        await closeJoining(table.gm);
+        const dealt = (await readRoleCards(table.seats))[1]!;
+        const player = table.seats[1]!;
+
+        // The role card is the right affordance here; the chip would duplicate it.
+        expect(await isVisible(player.page, '#my-role-chip'), 'the chip must not repeat the role card').toBe(false);
+
+        const offline = await goOffline(table, player);
+        // The GM starts without that seat, so the card is never seen by its owner.
+        await startActualGame(table.gm);
+        await waitForNight(table.gm);
+        await comeBack(table, player, offline);
+
+        await waitForNight(player.page);
+        await waitUntilVisible(player.page, '#my-role-chip');
+        await expect(player.page.locator('#my-role-chip-name')).toHaveText(dealt);
+        expect((await requireSnapshot(player.page)).role).toBe(roleEnum(dealt));
+
+        // Not an artefact of one page's memory: the same after a hard reload in that phase.
+        await player.page.reload();
+        await waitForNight(player.page);
+        await waitUntilVisible(player.page, '#my-role-chip');
+        await expect(player.page.locator('#my-role-chip-name')).toHaveText(dealt);
+        expect(await isVisible(player.page, '#role-name-display'), 'the distribution card is long gone').toBe(false);
+    });
+
+    test('role chip: hidden where the role card or the summary is the right affordance', async ({ browser }) => {
+        test.slow();
+        const table = await openTable(browser, 4);
+        for (const seat of table.seats) {
+            expect(await isVisible(seat.page, '#my-role-chip'), 'the chip must not appear in the LOBBY').toBe(false);
+        }
+
+        await waitForPointerReady(table.gm);
+        await table.gm.locator('#start-game-btn').click();
+        await waitUntilVisible(table.gm, '#role-selection-admin-ui');
+        for (const seat of table.seats) {
+            expect(await isVisible(seat.page, '#my-role-chip'), 'the chip must not appear in ROLE_SELECTION').toBe(false);
+        }
+
+        await waitForPointerReady(table.gm);
+        await table.gm.locator('#confirm-roles-btn').click();
+        table.roles = await readRoleCards(table.seats);
+        const dealt = table.roles[1]!;
+        for (const seat of table.seats) {
+            expect(await isVisible(seat.page, '#my-role-chip'), 'the chip must not appear on the role card').toBe(false);
+        }
+
+        await startActualGame(table.gm);
+        for (const seat of table.seats) await waitForNight(seat.page);
+        await waitUntilVisible(table.seats[1]!.page, '#my-role-chip');
+        await expect(table.seats[1]!.page.locator('#my-role-chip-name')).toHaveText(dealt);
+
+        // It also carries through the day, and disappears on the summary screen.
+        await advanceUntil(table, table.seats[1]!.page, (snap) => snap.phase === 'DAY');
+        await waitUntilVisible(table.seats[1]!.page, '#my-role-chip');
+        await expect(table.seats[1]!.page.locator('#my-role-chip-name')).toHaveText(dealt);
+
+        await lynchTheWolf(table);
+        for (const seat of table.seats) {
+            expect(await isVisible(seat.page, '#my-role-chip'), 'the summary screen lists every role already').toBe(false);
+        }
     });
 });

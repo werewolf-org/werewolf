@@ -32,7 +32,12 @@ export async function startGameServer(port: number = 0): Promise<GameServerHandl
         cors: {
             origin: origins.length > 0 ? origins : "http://localhost:5173",
             methods: ["GET", "POST"]
-        }
+        },
+        // Detection speed for a phone that walked out of Wi-Fi range. The defaults
+        // (25s interval + 20s timeout) leave a player staring at a frozen screen for up
+        // to ~45s before the client even tries to reconnect.
+        pingInterval: 10_000,
+        pingTimeout: 10_000
     });
 
     socketService.init(io);

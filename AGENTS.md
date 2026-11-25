@@ -197,7 +197,7 @@ Browser suite (`e2e/specs/`, Playwright, ~1.8 min):
 | `wiring.spec.ts` | 2 | Four phones into the first night; bad game id shows the error card |
 | `gameplay.spec.ts` | 5 | Lobby, acting role's night turn, bystander, full day→night 2, GM escape hatch |
 | `reconnect.spec.ts` | 4 | Reload in lobby and mid-game, second context, error-card recovery |
-| `disconnect-phases.spec.ts` | 14 | Disconnection matrix: 10 phases × network blip, reload, reopened tab, GM offline |
+| `disconnect-phases.spec.ts` | 18 | Disconnection matrix: 10 phases × network blip, reload, reopened tab, GM offline; connection banner and role chip |
 | `robustness.spec.ts` | 5 | Failed join, gate overlay, double-tap create, stray-tap guard, GM-only control |
 | `escaping.spec.ts` | 2 | HTML payload in a player name inert in lobby, day and death popup |
 

@@ -67,18 +67,19 @@ The first attempt also guarded every phase swap and was reverted: it swallowed l
 (it broke 10 of 18 browser tests, and a human tapping a wolf target the instant the screen changes has
 done nothing wrong). Route changes are the case that was actually observed.
 
-## Product gaps the browser suite found (not fixed)
+## Product gaps the browser suite found
 
-- **No disconnect indicator on the game route.** The cold-start gate only covers the initial connect. A
-  running game that loses its socket shows nothing: the screen simply freezes, and with socket.io's ping
-  timeout a real radio loss is only noticed after ~45s. The player has no way to tell "waiting" from
-  "broken". B15 fixed the reconnection; the visible half was never built.
-- **A player who was offline during DISTRIBUTION can never learn their role.** Roles arrive on the
-  distribution card only. If the GM starts without that seat (it does not wait), the returning player
-  lands in NIGHT with the correct role but no way to see it — night views only show the active role's
-  UI, and a villager sees "Close your eyes…".
-- **A seat that never returns keeps its distributed role forever.** There is no kick/remove path, only
-  the GM escape hatch to skip the turn (see the accepted limitations above).
+- **No disconnect indicator on the game route.** *Fixed.* `#connection-banner` ("Connection lost.
+  Reconnecting…") appears whenever a game is on screen and `isConnected` is false. The socket.io server
+  now uses `pingInterval: 10s` / `pingTimeout: 10s` instead of 25s/20s, so a real radio loss is noticed in
+  ~20s instead of ~45s. B15 fixed the reconnection; this is the visible half.
+- **A player who was offline during DISTRIBUTION could never learn their role.** *Fixed.* `#my-role-chip`
+  shows your role during NIGHT, SHERIFF_ELECTION and DAY (hidden in LOBBY/ROLE_SELECTION/DISTRIBUTION,
+  where the role card is the right affordance, and in GAME_OVER, where the summary is). It renders from
+  the snapshot, so it also survives a hard reload.
+- **A seat that never returns keeps its distributed role forever.** *Open, by decision.* There is no
+  kick/remove path, only the GM escape hatch to skip the turn. Whether the GM should remove the player or
+  the village should keep a silent seat is a game-design question, not a bug: decide it after a playtest.
 
 
 

@@ -28,6 +28,11 @@ export class GamePage extends View {
     private advanceConfirmBtn: HTMLButtonElement | null = null;
     private advanceCancelBtn: HTMLButtonElement | null = null;
     private advancePending = false;
+
+    // Connection banner and persistent role chip
+    private connectionBanner: HTMLElement | null = null;
+    private roleChip: HTMLElement | null = null;
+    private roleChipName: HTMLElement | null = null;
     
     // Track the current sub-view
     private currentPhaseView: View | null = null;
@@ -43,6 +48,10 @@ export class GamePage extends View {
 
         this.phaseContainer = document.getElementById('phase-view-container');
         this.errorView = document.getElementById('game-error-view');
+
+        this.connectionBanner = document.getElementById('connection-banner');
+        this.roleChip = document.getElementById('my-role-chip');
+        this.roleChipName = document.getElementById('my-role-chip-name');
 
         this.advanceView = document.getElementById('manager-advance-view');
         this.advanceBtn = document.getElementById('manager-advance-btn') as HTMLButtonElement | null;
@@ -118,6 +127,11 @@ export class GamePage extends View {
             s.sheriffElectionDone,
         ].join('|'), () => this.updateManagerAdvance());
 
+        // Connection banner + persistent role chip. Both used to be missing: a lost socket
+        // looked like "nobody has acted yet", and a player who was offline during the role
+        // distribution never learned their role at all.
+        subscribeSelector(this, s => `${s.isConnected}|${s.phase}|${s.role}`, () => this.updateStatusStrip());
+
         // Global death tracking
         subscribeSelector(this, s => s.players, (players) => {
             if (players.length === 0) return;
@@ -151,8 +165,27 @@ export class GamePage extends View {
         }
     }
 
-    private updateManagerAdvance(): void {
+    private updateStatusStrip(): void {
         const state = getState();
+
+        // Only claim a connection problem once a game is on screen; before that the server
+        // gate and the error card own the page.
+        if (this.connectionBanner) {
+            const inGame = state.phase !== null;
+            this.connectionBanner.style.display = inGame && !state.isConnected ? 'block' : 'none';
+        }
+
+        // The role chip carries the role past the distribution card, so a player who was
+        // offline while roles were dealt can still find out what they are.
+        const chipPhases: (Phase | null)[] = [Phase.NIGHT, Phase.SHERIFF_ELECTION, Phase.DAY];
+        const showChip = !!state.role && chipPhases.includes(state.phase);
+        if (this.roleChip && this.roleChipName) {
+            this.roleChip.style.display = showChip ? 'block' : 'none';
+            if (showChip && state.role) this.roleChipName.innerText = ROLES[state.role].displayName;
+        }
+    }
+
+    private updateManagerAdvance(): void {        const state = getState();
         const visible = state.isManager
             && (state.phase === Phase.NIGHT || state.phase === Phase.DAY || state.phase === Phase.SHERIFF_ELECTION);
 

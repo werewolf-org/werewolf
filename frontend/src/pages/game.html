@@ -1,4 +1,18 @@
 <div class="app-container">
+    <!-- Visible whenever the socket is down while a game is running: a lost connection used
+         to look exactly like "nobody has acted yet" for up to the ping timeout. -->
+    <div id="connection-banner" style="display: none; position: sticky; top: 0; z-index: 900;
+         background: var(--danger, #b3261e); color: #fff; font-size: 0.8rem; text-align: center;
+         padding: 8px 12px; border-radius: 6px; margin-bottom: 10px;">
+        Connection lost. Reconnecting…
+    </div>
+
+    <!-- Your role, for the rest of the game. Roles used to exist only on the distribution card,
+         so a player who was offline during distribution never learned theirs. -->
+    <div id="my-role-chip" style="display: none; text-align: center; margin-bottom: 8px;">
+        <span class="fog-text" style="font-size: 0.75rem;">You are</span>
+        <span id="my-role-chip-name" class="highlight-text" style="font-size: 0.8rem;"></span>
+    </div>
     <!-- A failed join is terminal: show why, plus a way out, instead of a blank page -->
     <div id="game-error-view" style="display: none;">
         <div class="pixel-card">
