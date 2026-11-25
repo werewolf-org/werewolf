@@ -127,6 +127,41 @@ receives, because that is everything a player ever sees.
 Rules: roles are assigned randomly, so always discover them from snapshots (`state.role`), never assume
 an assignment. Synchronise with `waitFor*`, never with sleeps. Always `close()` the game in `afterEach`.
 
+### Browser end-to-end (`e2e/`, Playwright)
+Covers what a socket-level test cannot see: the Vite proxy, the websocket upgrade, the hash router, the
+store, the phase views and touch input. Starts the real backend (port 3210) and a real Vite dev server
+(port 5273, `--mode e2e` so `frontend/.env.e2e` clears `VITE_API_URL` and the app talks to its own origin
+through the proxy). One browser context per player = one phone each (iPhone 13, chromium).
+
+```bash
+npm install                    # at the repo root, once
+npx playwright install chromium
+npm run test:e2e               # all browser specs
+npx playwright test -c e2e/playwright.config.ts --grep lobby
+
+# a second concurrent run (another agent, another CI job) needs its own ports,
+# otherwise both runs fight over :3210/:5273
+E2E_BACKEND_PORT=3311 E2E_FRONTEND_PORT=5374 npm run test:e2e
+```
+
+- `e2e/lib/flows.ts` — shared flows (`createGame`, `joinGame`, `setName`, `closeJoining`, `readRoleCards`,
+  `startActualGame`, `startGameWithPlayers`, `isVisible`, `waitUntilVisible`, `waitForNight`,
+  `collectPageErrors`, `failOnDialogs`). `startGameWithPlayers` returns the role each phone was dealt.
+- `e2e/specs/wiring.spec.ts` — four phones from the start page into the first night. If this is red,
+  ignore every other browser result.
+- `e2e/specs/gameplay.spec.ts` — lobby, an acting role's night turn, a bystander, the day vote, the GM
+  escape hatch.
+- `e2e/specs/reconnect.spec.ts` — reload in the lobby and mid-game, a second tab not stealing a seat.
+- `e2e/specs/robustness.spec.ts` — failed join, back button during the server gate, double-tap create.
+- `e2e/specs/escaping.spec.ts` — an HTML payload in a player name renders as text.
+
+Rules: every spec asserts in `afterEach` that no `dialog` opened and no `pageerror`/`console.error`
+happened — the app must never use `alert()` as its only feedback. Roles are random, so derive them from
+`startGameWithPlayers().roles`. No `waitForTimeout`; use `expect.poll` / `isVisible`. Animate-free
+assertions beat immediate clicks. The browser suite runs locally against a local backend: it cannot judge
+audio pacing or real device behaviour.
+
+
 
 ### Test Coverage
 | File | Tests | Coverage |

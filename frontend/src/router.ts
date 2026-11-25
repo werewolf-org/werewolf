@@ -7,10 +7,45 @@ import { getState } from './store';
 // Simple router to handle / and /#/game/:id
 let currentView: View | null = null;
 
+// Tap-through guard. A fast double tap on one screen can deliver its second click to
+// whatever the NEXT screen renders in the same place - in practice "Create Game" then
+// "Close Joining", which closes the lobby with one player and shows an error. Clicks are
+// swallowed in the capture phase for a moment after a route change; the first tap has
+// already done its work by then.
+const TAP_THROUGH_WINDOW_MS = 400;
+let ignoreClicksUntil = 0;
+let guardTimer: number | null = null;
+
+document.addEventListener(
+  'click',
+  (event) => {
+    if (Date.now() >= ignoreClicksUntil) return;
+    event.stopPropagation();
+    event.preventDefault();
+  },
+  true,
+);
+
+const armTapThroughGuard = () => {
+  ignoreClicksUntil = Date.now() + TAP_THROUGH_WINDOW_MS;
+  // Mirrored on <html> so tooling (and a curious human in the console) can tell whether
+  // input is currently being ignored, instead of guessing with a sleep.
+  document.documentElement.dataset.tapGuard = 'armed';
+  if (guardTimer !== null) window.clearTimeout(guardTimer);
+  guardTimer = window.setTimeout(() => {
+    document.documentElement.dataset.tapGuard = 'ready';
+    guardTimer = null;
+  }, TAP_THROUGH_WINDOW_MS);
+};
+
 export const render = () => {
   const hash = window.location.hash;
   const app = document.getElementById('app');
   if (!app) return;
+
+  // Only arm when replacing an existing view. The very first paint is not a tap-through,
+  // and swallowing the first tap of a freshly loaded page looks like a dead button.
+  if (currentView) armTapThroughGuard();
 
   // Cleanup previous view
   if (currentView) {
@@ -65,6 +100,8 @@ export const forceRender = () => {
   const hash = window.location.hash;
   const app = document.getElementById('app');
   if (!app) return;
+
+  armTapThroughGuard();
 
   if (currentView) {
     currentView.unmount();

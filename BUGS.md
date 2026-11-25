@@ -57,6 +57,16 @@ round), caught by `game-flow.test.ts` the first time the harness ran a full game
 first role against the future round (`{ ...game, round: nextRound }`), which keeps validate-before-mutate
 and restores the semantics. Pinned by the "night 2 must not wake the cupid" assertion.
 
+**R2 [MINOR, found by the browser suite] Tap-through: a double tap on "Create Game" closed the lobby.**
+The second tap of a double tap landed on the lobby's "Close Joining" button, which renders where "Create
+Game" was, producing an alert ("Game X only has 1 players…") and closing the lobby with one player in it.
+Fixed in `router.ts` with a capture-phase click guard armed on route changes (400ms), mirrored on
+`<html data-tap-guard>` so the e2e suite can wait for live input instead of sleeping.
+
+The first attempt also guarded every phase swap and was reverted: it swallowed legitimate fast input
+(it broke 10 of 18 browser tests, and a human tapping a wolf target the instant the screen changes has
+done nothing wrong). Route changes are the case that was actually observed.
+
 
 
 ## WP1 — No identity & authorization layer

@@ -12,7 +12,9 @@ export default defineConfig(({ mode }) => {
       // socket.io silently lands on Vite's HMR socket instead.
       proxy: {
         '/socket.io': {
-          target: 'http://localhost:3000',
+          // API_PROXY_TARGET lets the browser e2e suite point this at the port its
+          // own backend was started on (see e2e/playwright.config.ts).
+          target: process.env.API_PROXY_TARGET || 'http://localhost:3000',
           ws: true,
           changeOrigin: true,
         },
