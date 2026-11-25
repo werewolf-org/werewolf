@@ -2,9 +2,11 @@ import { View } from '../../base-view';
 import redLadyHtml from './red-lady.html?raw';
 import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
+import { escapeHtml } from '../../html';
 
 export class RedLadyPhase extends View {
     private selectedTargetUUID: string | null = null;
+    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -16,18 +18,32 @@ export class RedLadyPhase extends View {
         subscribeSelector(this, s => s.redLadySleepoverUUID, () => this.updateUI());
         subscribeSelector(this, s => s.players, () => this.updateUI());
 
-        const confirmBtn = document.getElementById('confirm-sleepover-btn');
+        const confirmBtn = document.getElementById('confirm-sleepover-btn') as HTMLButtonElement | null;
         if (confirmBtn) {
             confirmBtn.addEventListener('click', () => {
                 if (this.selectedTargetUUID) {
+                    // Locked synchronously: a second tap would advance nextRole again.
+                    if (!this.lockAction('sleepover', confirmBtn, () => !getState().redLadySleepoverUUID)) return;
                     console.log('sleepover at: ', this.selectedTargetUUID);
                     socketService.sleepOver(this.selectedTargetUUID);
                 }
             });
         }
+    }
 
-        // Initial render
-        this.updateUI();
+    // Disable an action button on the first tap so a double tap cannot emit twice.
+    // A successful action answers with a fresh snapshot; if nothing changed within
+    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
+    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
+        if (this.lockedActions.has(key)) return false;
+        this.lockedActions.add(key);
+        if (btn) btn.disabled = true;
+        window.setTimeout(() => {
+            if (!stillPending()) return;
+            this.lockedActions.delete(key);
+            if (btn) btn.disabled = false;
+        }, 3000);
+        return true;
     }
 
     private updateUI() {
@@ -71,7 +87,7 @@ export class RedLadyPhase extends View {
             return `
                 <li class="pixel-list-item selectable-player ${isSelected || isPersistedSelected ? 'selected' : ''}" data-uuid="${p.playerUUID}">
                     <span class="player-dot alive"></span>
-                    <span class="player-name">${p.displayName}</span>
+                    <span class="player-name">${escapeHtml(p.displayName || 'Unnamed Player')}</span>
                 </li>
             `;
         }).join('');

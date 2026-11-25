@@ -3,8 +3,11 @@ import lobbyHtml from './lobby.html?raw';
 import { subscribeSelector, getState } from '../../store';
 import QRCode from 'qrcode';
 import { socketService } from '../../socket.service';
+import { escapeHtml } from '../../html';
+import { Phase } from '@shared/phases';
 
 export class LobbyPhase extends View {
+    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -37,16 +40,33 @@ export class LobbyPhase extends View {
             this.toggleManagerUI(isManager);
         });
 
-        // Initial render
+        // Initial name sync only; the player list and the manager UI are painted by
+        // their subscriptions (which invoke once at subscribe time).
         this.setupNameInput(state);
-        this.updatePlayerList(state.players);
-        this.toggleManagerUI(state.isManager);
 
         // 4. Setup Action Listeners
-        const startBtn = document.getElementById('start-game-btn');
+        const startBtn = document.getElementById('start-game-btn') as HTMLButtonElement | null;
         if (startBtn) {
-            startBtn.addEventListener('click', () => socketService.closeJoining());
+            startBtn.addEventListener('click', () => {
+                if (!this.lockAction('closeJoining', startBtn, () => getState().phase === Phase.LOBBY)) return;
+                socketService.closeJoining();
+            });
         }
+    }
+
+    // Disable an action button on the first tap so a double tap cannot emit twice.
+    // A successful action answers with a fresh snapshot; if nothing changed within
+    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
+    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
+        if (this.lockedActions.has(key)) return false;
+        this.lockedActions.add(key);
+        if (btn) btn.disabled = true;
+        window.setTimeout(() => {
+            if (!stillPending()) return;
+            this.lockedActions.delete(key);
+            if (btn) btn.disabled = false;
+        }, 3000);
+        return true;
     }
 
     private toggleManagerUI(isManager: boolean) {
@@ -111,7 +131,7 @@ export class LobbyPhase extends View {
             return `
                 <li class="pixel-list-item">
                     <span class="player-dot alive"></span>
-                    <span>${p.displayName || 'Unnamed Player'}</span>
+                    <span>${escapeHtml(p.displayName || 'Unnamed Player')}</span>
                 </li>
             `;
         }).join('');

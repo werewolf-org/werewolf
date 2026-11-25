@@ -3,9 +3,11 @@ import cupidHtml from './cupid.html?raw';
 import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
 import { Role } from '@shared/roles.js';
+import { escapeHtml } from '../../html';
 
 export class CupidPhase extends View {
     private selectedTargetUUIDs: string[] = [];
+    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -21,9 +23,6 @@ export class CupidPhase extends View {
 
         this.setupCupidListeners();
         this.setupLoverListeners();
-        
-        // Initial render
-        this.updateUI();
     }
 
     private updateUI() {
@@ -92,7 +91,7 @@ export class CupidPhase extends View {
         listEl.innerHTML = lovers.map(l => {
             return `
                 <li class="pixel-list-item" style="justify-content: space-between;">
-                    <span>${state.players.find((player) => player.playerUUID == l.uuid)?.displayName}</span>
+                    <span>${escapeHtml(state.players.find((player) => player.playerUUID == l.uuid)?.displayName || 'Unnamed Player')}</span>
                     <span class="highlight-text">${l.confirmed ? 'READY' : 'AWAKENING...'}</span>
                 </li>
             `;
@@ -100,10 +99,12 @@ export class CupidPhase extends View {
     }
 
     private setupCupidListeners() {
-        const confirmBtn = document.getElementById('confirm-cupid-target-btn') as HTMLButtonElement;
+        const confirmBtn = document.getElementById('confirm-cupid-target-btn') as HTMLButtonElement | null;
         if (confirmBtn) {
             confirmBtn.addEventListener('click', () => {
                 if (this.selectedTargetUUIDs.length === 2) {
+                    // Locked synchronously: a second tap would advance nextRole again.
+                    if (!this.lockAction('bind', confirmBtn, () => !getState().cupidFirstLoverUUID)) return;
                     socketService.bindLovers(this.selectedTargetUUIDs[0]!, this.selectedTargetUUIDs[1]!);
                 }
             });
@@ -111,12 +112,28 @@ export class CupidPhase extends View {
     }
 
     private setupLoverListeners() {
-        const confirmBtn = document.getElementById('confirm-love-btn');
+        const confirmBtn = document.getElementById('confirm-love-btn') as HTMLButtonElement | null;
         if (confirmBtn) {
             confirmBtn.addEventListener('click', () => {
+                if (!this.lockAction('accept', confirmBtn, () => !getState().lovePartnerConfirmed)) return;
                 socketService.confirmLoverBond();
             });
         }
+    }
+
+    // Disable an action button on the first tap so a double tap cannot emit twice.
+    // A successful action answers with a fresh snapshot; if nothing changed within
+    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
+    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
+        if (this.lockedActions.has(key)) return false;
+        this.lockedActions.add(key);
+        if (btn) btn.disabled = true;
+        window.setTimeout(() => {
+            if (!stillPending()) return;
+            this.lockedActions.delete(key);
+            if (btn) btn.disabled = false;
+        }, 3000);
+        return true;
     }
 
     private renderPlayerList() {
@@ -131,7 +148,7 @@ export class CupidPhase extends View {
             return `
                 <li class="pixel-list-item selectable-player ${isSelected ? 'selected' : ''}" data-uuid="${p.playerUUID}">
                     <span class="player-dot alive"></span>
-                    <span class="player-name">${p.displayName}</span>
+                    <span class="player-name">${escapeHtml(p.displayName || 'Unnamed Player')}</span>
                 </li>
             `;
         }).join('');

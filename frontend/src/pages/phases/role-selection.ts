@@ -4,6 +4,7 @@ import { socketService } from '../../socket.service';
 import { Role, ROLES } from '@shared/roles.js';
 import rsaData from '../../data/role-presets.json';
 import { View } from '../../base-view';
+import { Phase } from '@shared/phases';
 interface RoleCount {
     role: Role;
     name: string;
@@ -13,6 +14,7 @@ interface RoleCount {
 export class RoleSelectionPhase extends View {
     private roles: RoleCount[] = [];
     private playerCnt: number = 0;
+    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -80,16 +82,32 @@ export class RoleSelectionPhase extends View {
 
         this.renderList();
 
-        const startBtn = document.getElementById('confirm-roles-btn');
+        const startBtn = document.getElementById('confirm-roles-btn') as HTMLButtonElement | null;
         if (startBtn) {
             startBtn.addEventListener('click', () => {
                 const rolesMap: Record<string, number> = {};
                 this.roles.forEach(r => {
                     if (r.count > 0) rolesMap[r.role] = r.count; // Use Enum Value as key
                 });
+                if (!this.lockAction(startBtn, () => getState().phase === Phase.ROLE_SELECTION)) return;
                 socketService.roleDistribution(rolesMap);
             });
         }
+    }
+
+    // Disable the GM button on the first tap so a double tap cannot distribute twice.
+    // A successful action answers with a fresh snapshot; if nothing changed within
+    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
+    private lockAction(btn: HTMLButtonElement, stillPending: () => boolean): boolean {
+        if (this.lockedActions.has('distribute')) return false;
+        this.lockedActions.add('distribute');
+        btn.disabled = true;
+        window.setTimeout(() => {
+            if (!stillPending()) return;
+            this.lockedActions.delete('distribute');
+            btn.disabled = false;
+        }, 3000);
+        return true;
     }
 
     private renderList() {

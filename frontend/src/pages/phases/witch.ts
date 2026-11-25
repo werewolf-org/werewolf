@@ -2,10 +2,14 @@ import { View } from '../../base-view';
 import witchHtml from './witch.html?raw';
 import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
+import { escapeHtml } from '../../html';
+import { Role } from '@shared/roles.js';
 
 export class WitchPhase extends View {
     private initiallyUsedHeal = false;
     private initiallyUsedKill = false;
+    private selectedKillUUID: string | null = null;
+    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -22,9 +26,6 @@ export class WitchPhase extends View {
         subscribeSelector(this, s => s.players, () => this.updateUI());
 
         this.setupListeners();
-        
-        // Initial render
-        this.updateUI();
     }
 
     private updateUI() {
@@ -83,14 +84,17 @@ export class WitchPhase extends View {
     }
 
     private setupListeners() {
-        const healBtn = document.getElementById('use-heal-btn');
-        const killBtn = document.getElementById('use-kill-btn');
-        const confirmBtn = document.getElementById('confirm-witch-actions-btn');
+        const healBtn = document.getElementById('use-heal-btn') as HTMLButtonElement | null;
+        const killBtn = document.getElementById('use-kill-btn') as HTMLButtonElement | null;
+        const confirmKillBtn = document.getElementById('confirm-kill-btn') as HTMLButtonElement | null;
+        const confirmBtn = document.getElementById('confirm-witch-actions-btn') as HTMLButtonElement | null;
 
         if (healBtn) {
             healBtn.addEventListener('click', () => {
                 const state = getState();
                 if (!state.witchUsedHealingPotion && state.werewolfVictim) {
+                    // Healing is a one-shot potion: never fire it twice from a double tap.
+                    if (!this.lockAction('heal', healBtn, () => !getState().witchUsedHealingPotion)) return;
                     socketService.usePotion('HEAL', null);
                 }
             });
@@ -105,8 +109,19 @@ export class WitchPhase extends View {
             });
         }
 
+        if (confirmKillBtn) {
+            confirmKillBtn.addEventListener('click', () => {
+                if (!this.selectedKillUUID) return;
+                // Same one-shot potion: requires a deliberate select-then-confirm.
+                if (!this.lockAction('kill', confirmKillBtn, () => !getState().witchUsedKillingPotion)) return;
+                socketService.usePotion('KILL', this.selectedKillUUID);
+            });
+        }
+
         if (confirmBtn) {
             confirmBtn.addEventListener('click', () => {
+                // Confirming ends the witch sub-turn; a second emit would skip the next role.
+                if (!this.lockAction('confirm', confirmBtn, () => getState().activeNightRole === Role.WITCH)) return;
                 socketService.witchConfirms();
                 
                 // Show waiting UI
@@ -118,19 +133,37 @@ export class WitchPhase extends View {
         }
     }
 
+    // Disable an action button on the first tap so a double tap cannot emit twice.
+    // A successful action answers with a fresh snapshot; if nothing changed within
+    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
+    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
+        if (this.lockedActions.has(key)) return false;
+        this.lockedActions.add(key);
+        if (btn) btn.disabled = true;
+        window.setTimeout(() => {
+            if (!stillPending()) return;
+            this.lockedActions.delete(key);
+            if (btn) btn.disabled = false;
+        }, 3000);
+        return true;
+    }
+
     private renderKillList() {
         const listEl = document.getElementById('witch-kill-list');
         if (!listEl) return;
 
         const state = getState();
         const players = state.players.filter(p => p.isAlive && p.playerUUID !== state.playerUUID);
-        
-        listEl.innerHTML = players.map(p => `
-            <li class="pixel-list-item selectable-player" data-uuid="${p.playerUUID}">
-                <span class="player-dot alive"></span>
-                <span class="player-name">${p.displayName || 'Unnamed Player'}</span>
-            </li>
-        `).join('');
+
+        listEl.innerHTML = players.map(p => {
+            const isSelected = this.selectedKillUUID === p.playerUUID;
+            return `
+                <li class="pixel-list-item selectable-player ${isSelected ? 'selected' : ''}" data-uuid="${p.playerUUID}">
+                    <span class="player-dot alive"></span>
+                    <span class="player-name">${escapeHtml(p.displayName || 'Unnamed Player')}</span>
+                </li>
+            `;
+        }).join('');
 
         const items = listEl.querySelectorAll('.selectable-player');
         items.forEach(item => {
@@ -138,9 +171,16 @@ export class WitchPhase extends View {
                 if (getState().witchUsedKillingPotion) return;
 
                 const targetUUID = item.getAttribute('data-uuid');
-                if (targetUUID) {
-                    socketService.usePotion('KILL', targetUUID);
-                }
+                if (!targetUUID) return;
+
+                // Select only; the potion fires from confirm-kill-btn so a single
+                // stray tap cannot burn the one-shot kill potion.
+                items.forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+                this.selectedKillUUID = targetUUID;
+
+                const confirmKillBtn = document.getElementById('confirm-kill-btn') as HTMLButtonElement;
+                if (confirmKillBtn) confirmKillBtn.disabled = false;
             });
         });
     }

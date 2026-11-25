@@ -3,9 +3,11 @@ import seerHtml from './seer.html?raw';
 import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
 import { Role, ROLES } from '@shared/roles.js';
+import { escapeHtml } from '../../html';
 
 export class SeerPhase extends View {
     private selectedTargetUUID: string | null = null;
+    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -18,9 +20,6 @@ export class SeerPhase extends View {
 
         this.setupSelectionListeners();
         this.setupDismissListener();
-
-        // Initial render
-        this.updateUI();
     }
 
     private updateUI() {
@@ -79,23 +78,41 @@ export class SeerPhase extends View {
     }
 
     private setupDismissListener() {
-        const btn = document.getElementById('dismiss-reveal-btn');
+        const btn = document.getElementById('dismiss-reveal-btn') as HTMLButtonElement | null;
         if (btn) {
             btn.addEventListener('click', () => {
+                // Seer confirms end the sub-turn; a second emit would advance nextRole again.
+                if (!this.lockAction('confirm', btn, () => !!getState().seerRevealUUID)) return;
                 socketService.seerConfirmed();
             });
         }
     }
 
     private setupSelectionListeners() {
-        const confirmBtn = document.getElementById('confirm-seer-target-btn');
+        const confirmBtn = document.getElementById('confirm-seer-target-btn') as HTMLButtonElement | null;
         if (confirmBtn) {
             confirmBtn.addEventListener('click', () => {
                 if (this.selectedTargetUUID) {
+                    if (!this.lockAction('reveal', confirmBtn, () => !getState().seerRevealUUID)) return;
                     socketService.revealRole(this.selectedTargetUUID);
                 }
             });
         }
+    }
+
+    // Disable an action button on the first tap so a double tap cannot emit twice.
+    // A successful action answers with a fresh snapshot; if nothing changed within
+    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
+    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
+        if (this.lockedActions.has(key)) return false;
+        this.lockedActions.add(key);
+        if (btn) btn.disabled = true;
+        window.setTimeout(() => {
+            if (!stillPending()) return;
+            this.lockedActions.delete(key);
+            if (btn) btn.disabled = false;
+        }, 3000);
+        return true;
     }
 
     private renderPlayerList() {
@@ -110,7 +127,7 @@ export class SeerPhase extends View {
             return `
                 <li class="pixel-list-item selectable-player ${isSelected ? 'selected' : ''}" data-uuid="${p.playerUUID}">
                     <span class="player-dot alive"></span>
-                    <span class="player-name">${p.displayName || 'Unnamed Player'}</span>
+                    <span class="player-name">${escapeHtml(p.displayName || 'Unnamed Player')}</span>
                 </li>
             `;
         }).join('');

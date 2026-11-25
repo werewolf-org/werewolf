@@ -3,8 +3,11 @@ import { View } from '../../base-view';
 import { subscribeSelector, getState } from '../../store';
 import { Role, ROLES, Team } from '@shared/roles.js';
 import { audioService } from '../../audio.service';
+import { escapeHtml } from '../../html';
 
 export class GameOverPhase extends View {
+    private winningNarrationPlayed = false;
+
     mount(container: HTMLElement): void {
         this.container = container;
         this.container.innerHTML = gameOverHtml;
@@ -24,7 +27,7 @@ export class GameOverPhase extends View {
             };
         }
 
-        this.render();
+        // No explicit render: both subscriptions paint once at subscribe time.
     }
 
     private render(): void {
@@ -39,23 +42,30 @@ export class GameOverPhase extends View {
         let winnerName = "No one wins!";
         winningTeamText.classList.remove('winner-wolf', 'winner-village', 'winner-couple');
         
+        // Every syncState re-renders; the win narration must only start once.
+        const narration = (line: string) => {
+            if (this.winningNarrationPlayed) return;
+            this.winningNarrationPlayed = true;
+            audioService.playNarration(line, 'overwrite');
+        };
+
         if (state.winningTeam === 'werewolves') {
             document.body.classList.remove('light-mode');
             winnerName = "The Werewolves Win!";
             winningTeamText.classList.add('winner-wolf');
-            audioService.playNarration('werewolves_won', 'overwrite');
+            narration('werewolves_won');
             audioService.setAtmosphere('Werewolf');
         } else if (state.winningTeam === 'village') {
             document.body.classList.add('light-mode');
             winnerName = "The Village Wins!";
             winningTeamText.classList.add('winner-village');
-            audioService.playNarration('village_won', 'overwrite');
+            narration('village_won');
             audioService.setAtmosphere('Village-Won');
         } else if (state.winningTeam === 'couple') {
             document.body.classList.add('light-mode');
             winnerName = "The Lovers Win!";
             winningTeamText.classList.add('winner-couple');
-            audioService.playNarration('lovers_won', 'overwrite');
+            narration('lovers_won');
             audioService.setAtmosphere('Amor');
         } else if (state.winningTeam === null) {
             document.body.classList.remove('light-mode');
@@ -97,7 +107,7 @@ export class GameOverPhase extends View {
             return `
                 <li class="pixel-list-item final-role-item ${!p.isAlive ? 'dead-player' : ''}">
                     <span style="${isWinner ? 'color: #ffcc00;' : ''}">
-                        ${p.displayName}
+                        ${escapeHtml(p.displayName || 'Unnamed Player')}
                     </span>
                     <span class="fog-text">${roleDef ? roleDef.displayName : 'Unknown'}</span>
                 </li>

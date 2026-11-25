@@ -3,13 +3,14 @@ import { socketService } from '../socket.service';
 import { View } from '../base-view';
 import { audioService } from '../audio.service';
 import { ServerGate } from '../server-gate';
-import { getState } from '../store';
+import { getState, resetState, subscribeSelector } from '../store';
 
 export class StartPage extends View {
   private createBtn: HTMLButtonElement | null = null;
   private gateContainer: HTMLElement | null = null;
   private gate: ServerGate | null = null;
   private isGated = false;
+  private isCreating = false;
 
   mount(container: HTMLElement): void {
     // Ensure we start in Dark Mode
@@ -17,6 +18,10 @@ export class StartPage extends View {
 
     // Stop any leftover narration when returning to start
     audioService.stopAllAudio();
+
+    // We are no longer in a game: drop the mirror so a later reconnect does not
+    // re-emit joinGame for the game we just left.
+    resetState();
 
     this.container = container;
     this.container.innerHTML = startHtml;
@@ -34,17 +39,29 @@ export class StartPage extends View {
     if (buyCoffeeBtn) {
       buyCoffeeBtn.addEventListener("click", () => window.open("https://buymeacoffee.com/benhauptvogel", "_blank"));
     }
+
+    // A failed createGame only emits `error`: release the in-flight guard so the
+    // player can tap again instead of being stuck with a dead button.
+    subscribeSelector(this, s => s.lastError, (message) => {
+      if (!message) return;
+      this.isCreating = false;
+      if (this.createBtn) this.createBtn.disabled = false;
+    });
   }
 
   private handleCreateGame = () => {
+    // The guard also applies to a warm connection: a double tap creates two
+    // games and the second `gameCreated` wins.
+    if (this.isCreating || this.isGated) return;
+    this.isCreating = true;
+
     // If already connected, fire immediately
     if (getState().isConnected) {
+      if (this.createBtn) this.createBtn.disabled = true;
       socketService.createGame();
       return;
     }
 
-    // Prevent double-clicking while the gate is active
-    if (this.isGated) return;
     this.isGated = true;
 
     // Hide the create-game button

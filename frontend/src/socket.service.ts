@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { getState, resetState, setState, type LocalAppState } from './store';
+import { getState, resetState, setState, storePlayerUUID, type LocalAppState } from './store';
 import { navigate } from './router';
 
 class SocketService {
@@ -15,7 +15,9 @@ class SocketService {
     }
 
     public connect(): void {
-        if (this.socket?.connected) return;
+        // Guard on the socket existing, not on it being connected: a socket that is
+        // still reconnecting must not be replaced by a second Manager.
+        if (this.socket) return;
 
         const URL = import.meta.env.VITE_API_URL || '';
         
@@ -28,10 +30,13 @@ class SocketService {
     }
 
     public disconnect(): void {
-        if (this.socket) {
-            this.socket.disconnect();
-            this.socket = null;
-        }
+        if (!this.socket) return;
+
+        // Drop the handlers before tearing the socket down so a retry never
+        // stacks a second set of listeners on top of the old one.
+        this.socket.removeAllListeners();
+        this.socket.disconnect();
+        this.socket = null;
     }
 
     // --- Actions (Emits) ---
@@ -82,6 +87,12 @@ class SocketService {
     public acceptSheriffRole() {
         const gameId = getState().gameId;
         this.socket?.emit('acceptSheriffRole', { gameId });
+    }
+
+    // GM-only escape hatch: advances the current phase by exactly one step.
+    public managerAdvance() {
+        const gameId = getState().gameId;
+        this.socket?.emit('managerAdvance', { gameId });
     }
 
     // Role specific emits
@@ -136,7 +147,16 @@ class SocketService {
 
         this.socket.on('connect', () => {
             console.log('Socket connected:', this.socket?.id);
-            setState({ isConnected: true });
+
+            // Every (re)connect gets a fresh socket.id while the server still maps our
+            // seat to the previous one. Re-announce ourselves before anything else
+            // depends on the socketId -> player mapping.
+            const { gameId, playerUUID } = getState();
+            if (gameId && playerUUID) {
+                this.joinGame(gameId, playerUUID);
+            }
+
+            setState({ isConnected: true, connectionError: null });
         });
 
         this.socket.on('disconnect', () => {
@@ -144,9 +164,22 @@ class SocketService {
             setState({ isConnected: false });
         });
 
+        this.socket.on('connect_error', (err: Error) => {
+            console.error('Socket connection error:', err.message);
+            setState({
+                connectionError: `Cannot reach the game server (${err.message}). Retrying...`,
+            });
+        });
+
         this.socket.on('error', (data: { message: string }) => {
             console.error('Socket Error:', data.message);
-            alert(data.message);
+            setState({ lastError: data.message });
+
+            // Without a phase the game page renders its own terminal error state.
+            // Every other view still relies on the alert for feedback.
+            if (getState().phase !== null) {
+                alert(data.message);
+            }
         });
 
         // --- Game Lifecycle Events ---
@@ -156,15 +189,20 @@ class SocketService {
         });
 
         this.socket.on('joinedGame', (data: { gameId: string, playerUUID: string }) => {
-            localStorage.setItem('playerUUID', data.playerUUID);
+            // Persist the seat under its game only: the same id must never be
+            // offered to a different game.
+            storePlayerUUID(data.gameId, data.playerUUID);
             console.log('joined game with id: ', data.playerUUID);
-            // setState({gameId: data.gameId});
             resetState();
+            // resetState() clears the per-game mirror; remember which game we belong to
+            // so a reconnect can re-emit joinGame before the next snapshot arrives.
+            setState({ gameId: data.gameId, playerUUID: data.playerUUID });
         });
 
         this.socket.on('syncState', (data: Partial<LocalAppState> ) => {
             console.log('syncState, patch: ', data);
-            setState(data);
+            // A snapshot means the join/action that preceded it worked.
+            setState({ ...data, lastError: null });
         })
 
     }

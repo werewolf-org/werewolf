@@ -1,4 +1,4 @@
-import { getState, setState, subscribeSelector } from './store';
+import { getState, subscribeSelector } from './store';
 import { View } from './base-view';
 import { socketService } from './socket.service';
 
@@ -19,6 +19,7 @@ export class ServerGate extends View {
     private overlayEl: HTMLElement | null = null;
 
     private timerId: number | null = null;
+    private readyTimeoutId: number | null = null;
     private startTime: number;
     private isTimedOut = false;
 
@@ -27,13 +28,16 @@ export class ServerGate extends View {
         this.mode = mode;
         this.onReady = onReady;
         this.onTimeout = onTimeout;
-        this.startTime = getState().serverBootStartTime ?? Date.now();
+        // Replaced in mount(): the deadline must start when the gate appears,
+        // not when the page loaded.
+        this.startTime = Date.now();
     }
 
     private isResolved = false;
 
     mount(container: HTMLElement): void {
         this.container = container;
+        this.startTime = Date.now();
 
         if (this.mode === 'overlay') {
             this.renderOverlay();
@@ -43,18 +47,20 @@ export class ServerGate extends View {
 
         this.startTimer();
 
-        // Listen for connection changes
+        // Listen for connection changes. subscribeSelector fires with the current
+        // value, so an already-connected socket resolves the gate immediately.
         subscribeSelector(this, (s) => s.isConnected, (isConnected) => {
-            if (isConnected && !this.isTimedOut && !this.isResolved) {
+            if (isConnected && !this.isResolved) {
                 this.handleReady();
             }
         });
 
-        // CRITICAL: The socket may have connected before we subscribed.
-        // Check immediately after registration so we don't miss it.
-        if (getState().isConnected && !this.isTimedOut && !this.isResolved) {
-            this.handleReady();
-        }
+        // Surface a real reason instead of silently waiting for the timeout.
+        subscribeSelector(this, (s) => s.connectionError, (message) => {
+            if (message && !this.isResolved && !this.isTimedOut && this.labelEl) {
+                this.labelEl.textContent = message;
+            }
+        });
     }
 
     unmount(): void {
@@ -64,6 +70,13 @@ export class ServerGate extends View {
             window.clearInterval(this.timerId);
             this.timerId = null;
         }
+        // The overlay lives on document.body, so it survives the container teardown
+        // and would stay as a full-screen black layer.
+        if (this.readyTimeoutId !== null) {
+            window.clearTimeout(this.readyTimeoutId);
+            this.readyTimeoutId = null;
+        }
+        this.destroyOverlay();
     }
 
     private renderOverlay(): void {
@@ -137,6 +150,7 @@ export class ServerGate extends View {
     private handleReady(): void {
         if (this.isResolved) return;
         this.isResolved = true;
+        this.isTimedOut = false;
 
         if (this.timerId !== null) {
             window.clearInterval(this.timerId);
@@ -144,12 +158,22 @@ export class ServerGate extends View {
         }
 
         if (this.progressEl) {
+            this.progressEl.classList.remove('timeout');
             this.progressEl.style.width = '100%';
+        }
+
+        if (this.labelEl) {
+            this.labelEl.textContent = 'Connected!';
+        }
+
+        if (this.retryBtn) {
+            this.retryBtn.style.display = 'none';
         }
 
         if (this.mode === 'overlay') {
             // Small delay so the user sees the bar complete
-            window.setTimeout(() => {
+            this.readyTimeoutId = window.setTimeout(() => {
+                this.readyTimeoutId = null;
                 this.destroyOverlay();
                 this.onReady();
             }, 300);
@@ -184,7 +208,6 @@ export class ServerGate extends View {
         this.isTimedOut = false;
         this.isResolved = false;
         this.startTime = Date.now();
-        setState({ serverBootStartTime: this.startTime });
 
         if (this.progressEl) {
             this.progressEl.classList.remove('timeout');

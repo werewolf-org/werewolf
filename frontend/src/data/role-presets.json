@@ -11,11 +11,11 @@
   "11": { "Werewolf": 3, "Villager": 3, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
   "12": { "Werewolf": 3, "Villager": 4, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
   "13": { "Werewolf": 4, "Villager": 4, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
-  "14": { "Werewolf": 4, "Villager": 4, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1, "Hunter": 1 },
-  "15": { "Werewolf": 5, "Villager": 4, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1, "Hunter": 1 },
-  "16": { "Werewolf": 5, "Villager": 5, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1, "Hunter": 1 },
-  "17": { "Werewolf": 5, "Villager": 6, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1, "Hunter": 1 },
-  "18": { "Werewolf": 6, "Villager": 6, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1, "Hunter": 1 },
-  "19": { "Werewolf": 6, "Villager": 7, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1, "Hunter": 1 },
-  "20": { "Werewolf": 6, "Villager": 8, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1, "Hunter": 1 }
+  "14": { "Werewolf": 4, "Villager": 5, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
+  "15": { "Werewolf": 5, "Villager": 5, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
+  "16": { "Werewolf": 5, "Villager": 6, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
+  "17": { "Werewolf": 5, "Villager": 7, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
+  "18": { "Werewolf": 6, "Villager": 7, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
+  "19": { "Werewolf": 6, "Villager": 8, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 },
+  "20": { "Werewolf": 6, "Villager": 9, "Seer": 1, "Cupid": 1, "Witch": 1, "Red Lady": 1, "Little Girl": 1 }
 }

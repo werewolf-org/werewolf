@@ -9,12 +9,12 @@ export interface LocalPlayerModel {
     isSheriff: boolean,
     role: Role | null,
     nomination: string | false | null,
-    lovePartner: string | null,
 }
 
 export interface LocalAppState {
     isConnected: boolean,
-    serverBootStartTime: number | null,
+    connectionError: string | null,
+    lastError: string | null,
 
     // global (game model mirror)
     gameId: string | null,
@@ -62,47 +62,88 @@ export interface LocalAppState {
 
 }
 
+// Single source of truth for "no game yet". Both the initial store and
+// resetState() derive from this so the two can never drift apart.
+function createInitialState(): LocalAppState {
+    return {
+        isConnected: false,
+        connectionError: null,
+        lastError: null,
+
+        gameId: null,
+        playerUUID: null,
+
+        phase: null,
+        activeNightRole: null,
+        players: [],
+
+        displayName: null,
+        isManager: false,
+        role: null,
+        lovePartnerUUID: null,
+        lovePartnerConfirmed: false,
+        readyForNight: false,
+        myNominationUUID: null,
+        myVoteTargetUUID: null,
+        lynchDone: false,
+        sheriffElectionDone: false,
+        winningTeam: null,
+
+        nominationsFinished: false,
+        voteResults: null,
+        voteProgress: null,
+        votedOutUUID: null,
+        werewolfVotes: null,
+        werewolfVictim: null,
+        witchUsedHealingPotion: false,
+        witchUsedKillingPotion: false,
+        redLadySleepoverUUID: null,
+        seerRevealUUID: null,
+        seerRevealRole: null,
+        cupidSelectedLovers: false,
+        cupidFirstLoverUUID: null,
+        cupidSecondLoverUUID: null,
+        cupidFirstLoverConfirmed: false,
+        cupidSecondLoverConfirmed: false,
+    };
+}
+
 const state: LocalAppState = {
-    isConnected: false,
-    serverBootStartTime: null,
-    
-    gameId: null,
-    playerUUID: localStorage.getItem('playerUUID') ?? null,
-
-    phase: null,
-    activeNightRole: null,
-    players: [],
-
-    displayName: null,
-    isManager: false,
-    role: null,
-    lovePartnerUUID: null,
-    lovePartnerConfirmed: false,
-    readyForNight: false,
-    myNominationUUID: null,
-    myVoteTargetUUID: null,
-    lynchDone: false,
-    sheriffElectionDone: false,
-    winningTeam: null,
-
-    nominationsFinished: false,
-    voteResults: null,
-    voteProgress: null,
-    votedOutUUID: null,
-    werewolfVotes: null,
-    werewolfVictim: null,
-    witchUsedHealingPotion: false,
-    witchUsedKillingPotion: false,
-    redLadySleepoverUUID: null,
-    seerRevealUUID: null,
-    seerRevealRole: null,
-    cupidSelectedLovers: false,
-    cupidFirstLoverUUID: null,
-    cupidSecondLoverUUID: null,
-    cupidFirstLoverConfirmed: false,
-    cupidSecondLoverConfirmed: false,
-
+    ...createInitialState(),
 };
+
+// --- Per-game player identity ---
+// A seat only exists inside one game, so the id is stored per game
+// (`playerUUID:<gameId>`). One shared id would send game A's seat to game B.
+
+const PLAYER_UUID_KEY_PREFIX = 'playerUUID:';
+const LEGACY_PLAYER_UUID_KEY = 'playerUUID';
+
+const playerUUIDKey = (gameId: string): string => `${PLAYER_UUID_KEY_PREFIX}${gameId}`;
+
+export function getStoredPlayerUUID(gameId: string): string | null {
+    const stored = localStorage.getItem(playerUUIDKey(gameId));
+    if (stored) return stored;
+
+    // One-time migration: older builds kept a single id for every game. Offer it
+    // to the game being opened, then drop it so it cannot leak into another game.
+    // It is only persisted once the backend confirms it (joinedGame).
+    const legacy = localStorage.getItem(LEGACY_PLAYER_UUID_KEY);
+    if (legacy) {
+        localStorage.removeItem(LEGACY_PLAYER_UUID_KEY);
+        return legacy;
+    }
+
+    return null;
+}
+
+export function storePlayerUUID(gameId: string, playerUUID: string): void {
+    localStorage.setItem(playerUUIDKey(gameId), playerUUID);
+}
+
+export function clearStoredPlayerUUID(gameId: string): void {
+    localStorage.removeItem(playerUUIDKey(gameId));
+}
 
 
 type Listener = (state: LocalAppState) => void;
@@ -124,6 +165,8 @@ function subscribe(fn: Listener): () => void {
 }
 
 // Subscribe to a specific part of the state and register it to a View's lifecycle.
+// The callback fires once at subscribe time with the current value, so views do
+// not need to hand-roll their first paint.
 export function subscribeSelector<T>(
     view: View,
     selector: (state: LocalAppState) => T,
@@ -138,45 +181,21 @@ export function subscribeSelector<T>(
         }
     });
     view.addUnsub(unsub);
+
+    fn(lastValue);
 }
 
 export function resetState(): void {
-    Object.assign(state, {
-        playerUUID: localStorage.getItem('playerUUID') ?? null,
+    setState({
+        ...createInitialState(),
 
-        // Note: we intentionally do NOT reset isConnected here.
+        // Note: we intentionally do NOT reset the connection fields here.
         // The socket is a global singleton that persists across game state resets.
-        // Resetting it here would break the cold-start gate logic.
+        // Resetting them here would break the cold-start gate logic.
+        isConnected: state.isConnected,
+        connectionError: state.connectionError,
 
-        phase: null,
-        activeNightRole: null,
-        players: [],
-
-        displayName: null,
-        isManager: false,
-        role: null,
-        lovePartnerUUID: null,
-        lovePartnerConfirmed: false,
-        readyForNight: false,
-        myNominationUUID: null,
-        myVoteTargetUUID: null,
-        lynchDone: false,
-        sheriffElectionDone: false,
-
-        voteResults: null,
-        voteProgress: null,
-        votedOutUUID: null,
-        werewolfVotes: null,
-        werewolfVictim: null,
-        witchUsedHealingPotion: false,
-        witchUsedKillingPotion: false,
-        redLadySleepoverUUID: null,
-        seerRevealUUID: null,
-        seerRevealRole: null,
-        cupidFirstLoverUUID: null,
-        cupidSecondLoverUUID: null,
-        cupidFirstLoverConfirmed: false,
-        cupidSecondLoverConfirmed: false,
-
+        // playerUUID is cleared with the rest: a seat belongs to one game, so the
+        // game page re-reads its own per-game id before emitting joinGame.
     });
 }

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "predeploy": "node -e \"const fs=require('fs');const files=['.env','.env.local','.env.production','.env.production.local'];let u=process.env.VITE_API_URL||'';for(const f of files){if(!fs.existsSync(f))continue;for(const line of fs.readFileSync(f,'utf8').split('\\n')){if(line.trim().startsWith('#'))continue;const i=line.indexOf('VITE_API_URL');if(i===-1)continue;const eq=line.indexOf('=',i);if(eq!==-1)u=line.slice(eq+1).trim().replace(/^['\\\"]+|['\\\"]+$/g,'');}}if(!u||u.indexOf('localhost')!==-1||u.indexOf('127.0.0.1')!==-1){console.error('predeploy: VITE_API_URL is unset or points at localhost - refusing to deploy.');process.exit(1);}else{console.log('predeploy: VITE_API_URL='+u);}\"",
     "deploy": "npm run build && gh-pages -d dist",
     "preview": "vite preview"
   },

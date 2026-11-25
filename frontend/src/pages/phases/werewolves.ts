@@ -2,9 +2,11 @@ import { View } from '../../base-view';
 import werewolvesHtml from './werewolves.html?raw';
 import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
+import { escapeHtml } from '../../html';
 
 export class WerewolvesPhase extends View {
     private selectedTargetUUID: string | null = null;
+    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -14,7 +16,7 @@ export class WerewolvesPhase extends View {
         subscribeSelector(this, s => s.werewolfVotes, () => this.updateUI());
         subscribeSelector(this, s => s.players, () => this.updateUI());
 
-        const confirmBtn = document.getElementById('confirm-werewolf-target-btn');
+        const confirmBtn = document.getElementById('confirm-werewolf-target-btn') as HTMLButtonElement | null;
         if (confirmBtn) {
             confirmBtn.addEventListener('click', () => {
                 const state = getState();
@@ -22,12 +24,31 @@ export class WerewolvesPhase extends View {
                 const alreadyVoted = state.werewolfVotes && myUUID && state.werewolfVotes[myUUID];
 
                 if (this.selectedTargetUUID && !alreadyVoted) {
+                    // Locked synchronously: a second tap would arrive after nextRole
+                    // advanced and would skip the following night role.
+                    if (!this.lockAction('kill', confirmBtn, () => {
+                        const current = getState();
+                        return !(current.playerUUID && current.werewolfVotes?.[current.playerUUID]);
+                    })) return;
                     socketService.werewolfVote(this.selectedTargetUUID);
                 }
             });
         }
+    }
 
-        this.updateUI();
+    // Disable an action button on the first tap so a double tap cannot emit twice.
+    // A successful action answers with a fresh snapshot; if nothing changed within
+    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
+    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
+        if (this.lockedActions.has(key)) return false;
+        this.lockedActions.add(key);
+        if (btn) btn.disabled = true;
+        window.setTimeout(() => {
+            if (!stillPending()) return;
+            this.lockedActions.delete(key);
+            if (btn) btn.disabled = false;
+        }, 3000);
+        return true;
     }
 
     private updateUI() {
@@ -85,7 +106,7 @@ export class WerewolvesPhase extends View {
             return `
                 <li class="pixel-list-item selectable-player ${isSelected ? 'selected' : ''}" data-uuid="${p.playerUUID}">
                     <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <span>${p.displayName || 'Unnamed Player'}</span>
+                        <span>${escapeHtml(p.displayName || 'Unnamed Player')}</span>
                         ${voteDisplay}
                     </div>
                 </li>

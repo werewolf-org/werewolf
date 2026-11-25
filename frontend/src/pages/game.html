@@ -1,7 +1,40 @@
 <div class="app-container">
+    <!-- A failed join is terminal: show why, plus a way out, instead of a blank page -->
+    <div id="game-error-view" style="display: none;">
+        <div class="pixel-card">
+            <h2 class="highlight-text">Could not join this game</h2>
+            <p id="game-error-message" class="fog-text"></p>
+            <p class="fog-text" style="font-size: 0.9rem;">
+                If you were trying to rejoin, your seat was dropped. Going back and
+                opening the link again joins you as a new player.
+            </p>
+            <button id="game-error-back-btn" class="btn btn-primary full-width" style="margin-top: 20px;">
+                Back to start
+            </button>
+        </div>
+    </div>
+
     <!-- The container where sub-views (Lobby, Night, Day) will be mounted -->
     <div id="phase-view-container">
         <!-- Content will be injected here dynamically -->
+    </div>
+
+    <!-- GM-ONLY LAST RESORT: only rendered for the manager and only while a phase can be stuck -->
+    <div id="manager-advance-view" class="pixel-card" style="display: none; margin-top: 20px;">
+        <h3 class="highlight-text" style="font-size: 0.9rem; margin-bottom: 8px;">Force advance</h3>
+        <p class="fog-text" style="font-size: 0.85rem;">
+            Only use this if someone is stuck. It skips the current step: a role, or the running vote.
+        </p>
+
+        <button id="manager-advance-btn" class="btn full-width">Force advance</button>
+
+        <div id="manager-advance-confirm" style="display: none;">
+            <p class="highlight-text" style="font-size: 0.85rem; margin-bottom: 8px;">
+                Really skip this step? It cannot be undone.
+            </p>
+            <button id="manager-advance-confirm-btn" class="btn btn-primary full-width">Yes, skip this step</button>
+            <button id="manager-advance-cancel-btn" class="btn full-width" style="margin-top: 8px;">Cancel</button>
+        </div>
     </div>
 
     <!-- GLOBAL DEATH ANNOUNCEMENT POPUP -->
