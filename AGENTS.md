@@ -104,6 +104,25 @@ receives, because that is everything a player ever sees.
 - `reconnect.test.ts` — reload, network blip, rejoin, disconnect mid-night.
 - `security.test.ts` — manager-only actions, out-of-turn actions, dead players, target validation,
   snapshot leaks.
+- `fuzz.test.ts` + `fuzz/` — **seeded random full games**. Random player count (4–10), random valid role
+  composition, and every client picks a random *legal* action from its own snapshot (plus ~8% chaos
+  probes that are expected to be rejected). Invariants are checked after every sync, so the assertions
+  do not depend on the outcome: no info leak, identical public state across clients, deaths only at
+  dawn or lynch, monotonic death, at most one (living) sheriff, coherent aggregates, legal phase edges,
+  terminal winner matching the living set. A random game that needs `managerAdvance`, or that hits the
+  round/event cap, fails: the escape hatch is for AFK humans, not for the state machine.
+
+  Exploration is biased on purpose: acting is near-certain, but the *target* is uniform, and the
+  branches that historically broke (all-abstain day, tied lynch, sheriff declining, no sheriff at all,
+  witch with no potions, early village win) each get 8–12% per run and are logged as `[branch:…]`.
+  Run it harder with:
+
+  ```bash
+  E2E_SEED=424242 E2E_FUZZ_GAMES=25 npx vitest run src/__tests__/e2e/fuzz.test.ts
+  ```
+
+  `E2E_SEED` pins the run and, because the role deal is seeded too, replays down to who is the seer.
+  A failure dumps the seed, the composition, the last actions and every client's snapshot.
 
 Rules: roles are assigned randomly, so always discover them from snapshots (`state.role`), never assume
 an assignment. Synchronise with `waitFor*`, never with sleeps. Always `close()` the game in `afterEach`.
@@ -126,6 +145,7 @@ an assignment. Synchronise with `waitFor*`, never with sleeps. Always `close()` 
 | `e2e/game-flow.test.ts` | 11 | Complete nights (heal, poison, red lady), sheriff election, full day, all three win conditions, sheriff death badge clear, dead-GM election exit |
 | `e2e/reconnect.test.ts` | 5 | Reload mid-day, network blip with new socket id, lobby refresh, post-lobby rejoin, disconnect mid-night |
 | `e2e/security.test.ts` | 9 | Manager-only actions, stranger socket, out-of-turn, dead players, target validation, snapshot leaks, escape hatch, intentional death reveal |
+| `e2e/fuzz.test.ts` | 2 | Seeded random full games: 3 per run by default, invariant checking after every sync, hard-branch coverage report |
 
 
 ### Test Helpers
