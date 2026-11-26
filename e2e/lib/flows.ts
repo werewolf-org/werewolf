@@ -121,6 +121,42 @@ export async function voteForSheriff(page: Page, targetName: string | null): Pro
     await confirm.click();
 }
 
+/**
+ * One daily nomination. `targetName` null means "No nomination", which is a selection plus the
+ * same confirm button as a name, not an immediate submit: a mis-tap must not cost someone their
+ * say. Several players may nominate the same person, so an already-nominated name is legal and
+ * the confirm button says so ("Nominate X too").
+ */
+export async function nominate(page: Page, targetName: string | null): Promise<void> {
+    const confirm = page.locator('#confirm-nomination-btn');
+    if (targetName === null) {
+        const pass = page.locator('#no-nomination-btn');
+        await expect(pass).toBeVisible();
+        await pass.click();
+        await expect(pass).toHaveClass(/selected/);
+        await expect(confirm, 'the confirm button must name the abstain').toHaveText('Confirm no nomination');
+    } else {
+        const candidate = page.locator('#day-nomination-list li.nomination-item').filter({ hasText: targetName });
+        await expect(candidate, `no nomination row for ${targetName}`).toHaveCount(1);
+        await candidate.click();
+        await expect(candidate).toHaveClass(/selected/);
+    }
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+}
+
+/** One trial vote. `targetName` null means an explicit abstain. */
+export async function voteToLynch(page: Page, targetName: string | null): Promise<void> {
+    const row = targetName
+        ? page.locator('#day-vote-list li.voting-item').filter({ hasText: targetName })
+        : page.locator('#day-vote-list li.voting-item[data-uuid="false"]');
+    await expect(row, `no trial ballot for ${targetName ?? 'Abstain'}`).toHaveCount(1);
+    await row.click();
+    const confirm = page.locator('#confirm-vote-btn');
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+}
+
 export interface StartedGame {
     code: string;
     gm: Page;

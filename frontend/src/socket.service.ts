@@ -2,6 +2,14 @@ import { io, Socket } from 'socket.io-client';
 import { getState, resetState, setState, storePlayerUUID, type LocalAppState } from './store';
 import { navigate } from './router';
 
+// A rejected action is read by a human on a phone. Backend messages are being rewritten to
+// plain sentences, but any that still carry internal ids (UUIDs, field names) must not reach
+// the screen: they are noise and, in a party game, they leak seat ids.
+export function toHumanError(message: string): string {
+    const looksInternal = /playerUUID|socketId|gameId|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-/i.test(message);
+    return looksInternal ? 'That action is not possible right now.' : message;
+}
+
 class SocketService {
     private socket: Socket | null = null;
     private static instance: SocketService;
@@ -185,7 +193,7 @@ class SocketService {
             // Non-blocking: the game page renders this as a toast. alert() freezes the
             // page's timers, so a rejected action could stop the socket from answering
             // its ping and take the whole connection down with it.
-            setState({ lastError: data.message });
+            setState({ lastError: toHumanError(data.message) });
         });
 
         // --- Game Lifecycle Events ---

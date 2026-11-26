@@ -458,7 +458,7 @@ test.describe('navigation', () => {
         await advanceUntilVisible(gm, '#day-nomination-view');
         for (const { page } of game.phones) await expect(page.locator('#day-nomination-view')).toBeVisible();
 
-        const candidate = voter.locator('#day-available-list li.nomination-item').filter({ hasText: nameOf(wolfIndex) });
+        const candidate = voter.locator('#day-nomination-list li.nomination-item').filter({ hasText: nameOf(wolfIndex) });
         await expect(candidate).toHaveCount(1);
         await candidate.click();
         await voter.locator('#confirm-nomination-btn').click();

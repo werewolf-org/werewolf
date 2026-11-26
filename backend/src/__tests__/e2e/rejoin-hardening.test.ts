@@ -250,7 +250,7 @@ describe('one seat, several sockets: the same action twice in one turn', () => {
         second.socket.emit('nominate', { gameId: game.gameId, nominationUUID: targets[1]!.playerUUID });
         const message = await rejection;
 
-        expect(message).toMatch(/already has a nomination/);
+        expect(message).toMatch(/already nominated/);
         expect(seat.errors.length + second.errors.length).toBe(1);
         expect(seat.state).toEqual(second.state);
         const applied = seat.state!.myNominationUUID;

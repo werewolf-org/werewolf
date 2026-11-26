@@ -33,12 +33,16 @@ export const getNominations = (game: Game): Record<string, string> | null => {
             .map(p => [p.playerUUID, p.nominationUUID])
     )
 }
+// The candidates on trial, in seat order, once each.
+// Several players may nominate the same person (a "second"), so the raw nomination list can
+// contain duplicates; the trial ballot must not.
 export const getNominatedPlayers = (game: Game): string[] => {
-  return game.players.flatMap(p => 
-    (p.playerUUID !== null && typeof p.nominationUUID === 'string') 
-      ? [p.nominationUUID] 
+  const targets = game.players.flatMap(p =>
+    (p.playerUUID !== null && typeof p.nominationUUID === 'string')
+      ? [p.nominationUUID]
       : []
   );
+  return [...new Set(targets)];
 }
 export const getVotingWinner = (game: Game): Player | null  => {
     const votes: Record<string, number> = {}

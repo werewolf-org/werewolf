@@ -176,12 +176,12 @@ test.describe('escaping', () => {
         for (const { page } of phones) {
             expect(await injectedElementCount(page), 'no injected element on any phone').toBe(0);
         }
-        await expect(gm.locator('#day-available-list')).toContainText(IMG_PAYLOAD);
+        await expect(gm.locator('#day-nomination-list')).toContainText(IMG_PAYLOAD);
         expect(dialogs).toEqual([]);
 
         // The death announcement interpolates names as well: put the payload player on
         // trial, vote them out with the GM escape hatch filling the other ballots.
-        await gm.locator('#day-available-list .nomination-item').filter({ hasText: IMG_PAYLOAD }).click();
+        await gm.locator('#day-nomination-list .nomination-item').filter({ hasText: IMG_PAYLOAD }).click();
         await gm.locator('#confirm-nomination-btn').click();
         await pressAdvance(gm);
         await waitUntilVisible(gm, '#day-voting-view');

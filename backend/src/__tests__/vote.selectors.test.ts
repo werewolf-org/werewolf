@@ -174,13 +174,21 @@ describe("vote.selectors", () => {
   });
 
   describe("getNominatedPlayers", () => {
-    it("returns list of all nominated player UUIDs (may include duplicates)", () => {
+    it("dedupes several players naming the same candidate, keeping seat order", () => {
       const game = createGameWithPlayers(3);
       game.players[0].nominationUUID = "p2";
-      game.players[1].nominationUUID = "p2"; // duplicate nomination
+      game.players[1].nominationUUID = "p2"; // a second for the same candidate
       game.players[2].nominationUUID = false;
       const result = getNominatedPlayers(game);
-      expect(result).toEqual(["p2", "p2"]);
+      expect(result).toEqual(["p2"]);
+    });
+
+    it("returns every distinct candidate in seat order", () => {
+      const game = createGameWithPlayers(3);
+      game.players[0].nominationUUID = "p2";
+      game.players[1].nominationUUID = "p0";
+      game.players[2].nominationUUID = "p1";
+      expect(getNominatedPlayers(game)).toEqual(["p2", "p0", "p1"]);
     });
 
     it("excludes false nominations", () => {

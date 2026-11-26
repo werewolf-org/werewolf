@@ -295,7 +295,7 @@ export class GameManager {
         if(!player.isAlive) return;
         if(game.phase === Phase.DAY) VoteHandler.castLynchVote(game, player, targetUUID);
         else if(game.phase === Phase.SHERIFF_ELECTION) VoteHandler.castSheriffVote(game, player, targetUUID);
-        else throw new Error(`Game with ID ${gameId} is not in Phase DAY or in Phase SHERIFF_ELECTION, so voting cannot happen right now`);
+        else throw new Error("Voting is closed right now.");
         this.checkGameOver(game);
         this.broadcastStateAndStore(game);
     }
@@ -305,7 +305,7 @@ export class GameManager {
         const player = this.getPlayerBySocketId(game, socketId);
         if(!player.isAlive) return;
         if(game.phase === Phase.DAY) VoteHandler.nominate(game, player, nominationUUID);
-        else throw new Error(`Game with ID ${gameId} is not in Phase DAY, so nomination cannot happen right now`);
+        else throw new Error("Nominations are closed.");
         this.checkGameOver(game);
         this.broadcastStateAndStore(game);
     }

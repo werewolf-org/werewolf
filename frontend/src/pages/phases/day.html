@@ -3,17 +3,32 @@
         margin-right: 4px;
         display: inline-block;
     }
-    .nomination-badge {
-        font-size: 0.7rem;
+    .nomination-chip {
+        margin-left: auto;
+        flex: none;
+        font-size: 0.75rem;
         padding: 2px 6px;
+        border: 1px solid var(--accent);
         border-radius: 4px;
-        background: var(--accent-muted);
-        color: var(--text-main);
-        margin-left: 8px;
+        color: var(--accent);
+        white-space: nowrap;
     }
     .no-nomination {
         font-style: italic;
         color: var(--text-muted);
+    }
+    /* "No nomination" is an alternative to the list, not a player: outlined, never a row. */
+    .nomination-pass-btn {
+        background: transparent;
+        color: var(--text-main);
+        box-shadow: none;
+        border-style: dashed;
+    }
+    .nomination-pass-btn.selected {
+        background-color: var(--accent);
+        color: #fff;
+        border-style: solid;
+        border-color: var(--highlight);
     }
 </style>
 
@@ -22,31 +37,28 @@
     <div id="day-nomination-view" style="display: none;">
         <div class="pixel-card day-header">
             <h2 class="day-title">Nominations</h2>
-            <p class="fog-text">The village discusses. Who should be put on trial?</p>
+            <p class="fog-text">Tap a name to put that player on trial. Once everyone has decided, the trial begins and you vote.</p>
+            <p class="fog-text" style="font-size: 0.85rem;">If nobody is nominated, the day ends without a lynch.</p>
             <div class="nomination-status-container" style="margin-top: 15px; text-align: center; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 8px;">
-                <p id="nomination-progress" class="highlight-text" style="font-size: 1.2rem; margin-bottom: 0; text-shadow: none;">0/0 players have nominated</p>
+                <p id="nomination-progress" class="highlight-text" style="font-size: 1.2rem; margin-bottom: 0; text-shadow: none;">0 of 0 decided</p>
+                <p id="nomination-waiting" class="fog-text" style="margin-bottom: 0; font-size: 0.85rem;"></p>
             </div>
         </div>
 
         <div class="pixel-card">
-            <h3>Trial List</h3>
-            <p class="fog-text">Players already nominated for lynch.</p>
-            <ul id="day-nominated-list" class="pixel-list">
-                <!-- Nominated players here -->
+            <h3>Who goes on trial?</h3>
+            <ul id="day-nomination-list" class="pixel-list">
+                <!-- Every living player, including the ones already on trial -->
             </ul>
-        </div>
-
-        <div class="pixel-card">
-            <h3>Available for Nomination</h3>
-            <p class="fog-text">Select a player to put on trial, or choose to skip.</p>
-            <ul id="day-available-list" class="pixel-list">
-                <!-- Available players here -->
-            </ul>
+            <p id="nomination-selection-hint" class="fog-text" style="margin-top: 10px; font-size: 0.85rem;"></p>
         </div>
 
         <div id="day-nomination-controls" class="manager-controls">
-            <button id="confirm-nomination-btn" class="btn btn-primary full-width" disabled>
-                Confirm Nomination
+            <button id="no-nomination-btn" class="btn nomination-pass-btn full-width" type="button">
+                No nomination
+            </button>
+            <button id="confirm-nomination-btn" class="btn btn-primary full-width" disabled type="button">
+                Nominate
             </button>
         </div>
 
@@ -59,16 +71,16 @@
     <div id="day-voting-view" style="display: none;">
         <div class="pixel-card day-header">
             <h2 class="day-title">The Trial</h2>
-            <p class="fog-text">The following players have been nominated. Cast your final vote.</p>
+            <p class="fog-text">The players on trial are below. Vote for the one the village should lynch, or abstain.</p>
             <div class="nomination-status-container" style="margin-top: 15px; text-align: center; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 8px;">
-                <p id="vote-progress" class="highlight-text" style="font-size: 1.2rem; margin-bottom: 0; text-shadow: none;">0/0 players have voted</p>
+                <p id="vote-progress" class="highlight-text" style="font-size: 1.2rem; margin-bottom: 0; text-shadow: none;">0 of 0 decided</p>
             </div>
         </div>
 
         <!-- Voting UI -->
         <div class="pixel-card">
             <h3>Cast your Vote</h3>
-            <p class="fog-text">Select a player to lynch...</p>
+            <p class="fog-text">Your vote is only revealed once everyone has voted.</p>
         </div>
 
         <div class="player-selection-list">

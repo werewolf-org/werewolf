@@ -194,7 +194,7 @@ test.describe('reconnect', () => {
         expect(afterReload.displayName).toBe('Player 1');
 
         // The other phones still have exactly one seat with that name.
-        await expect(gm.locator('#day-available-list .player-name').filter({ hasText: 'Player 1' })).toHaveCount(1);
+        await expect(gm.locator('#day-nomination-list .player-name').filter({ hasText: 'Player 1' })).toHaveCount(1);
     });
 
     test('a second tab does not steal the seat', async ({ browser }) => {

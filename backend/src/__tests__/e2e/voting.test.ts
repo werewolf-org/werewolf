@@ -66,12 +66,13 @@ function livingClients(target: TestGame): Client[] {
     return target.clients.filter(isAlive);
 }
 
-/** The candidate list as the snapshot reports it: `players[].nomination` is a target, not a nominator. */
+/** The trial ballot as a snapshot watcher can derive it: distinct nominated targets, sorted. */
 function candidatesIn(state: Snapshot): string[] {
-    return state.players
-        .map((p) => p.nomination)
-        .filter((nomination): nomination is string => typeof nomination === 'string')
-        .sort();
+    return [...new Set(
+        state.players
+            .map((p) => p.nomination)
+            .filter((nomination): nomination is string => typeof nomination === 'string'),
+    )].sort();
 }
 
 /** The one client holding `role`. Fails the test if the count is not exactly one. */
@@ -793,7 +794,7 @@ describe('voting: abstains', () => {
 });
 
 describe('voting: nominations', () => {
-    it('11. rejects a duplicate nomination but accepts a self-nomination, which can be lynched', async () => {
+    it('11. accepts a second for the same candidate and dedupes the trial ballot', async () => {
         const t = await TestGame.create({ playerCount: 5 });
         game = t;
         await t.setupAndStart(FIVE);
@@ -802,38 +803,40 @@ describe('voting: nominations', () => {
         const [p1, p2, a, p3, p4] = livingClients(t) as [Client, Client, Client, Client, Client];
         await castNominations(t, [[p1, a]]);
 
-        const duplicate = await rejected(
-            p2,
-            'nominate',
-            { gameId: t.gameId, nominationUUID: a.playerUUID },
-            'a second nomination of the same candidate',
-        );
-        expect(duplicate).toMatch(/already nominated/i);
-        expect(p2.state!.myNominationUUID, 'the rejected nomination was recorded').toBeNull();
+        // Agreeing with a nomination is legal: no first-come-first-served race, no rejection.
+        await castNominations(t, [[p2, a]]);
+        expect(p2.state!.myNominationUUID, 'the second was not recorded').toBe(a.playerUUID);
+        expect(p2.errors, 'a second was rejected').toHaveLength(0);
 
-        // Nominating yourself is legal.
-        await castNominations(t, [[p2, p2]]);
-        expect(p2.state!.myNominationUUID).toBe(p2.playerUUID);
+        // Nominating yourself is legal too.
+        await castNominations(t, [[a, a]]);
+        expect(a.state!.myNominationUUID).toBe(a.playerUUID);
 
         await castNominations(t, [
             [p3, false],
             [p4, false],
-            [a, false],
         ]);
         await t.manager.waitFor((s) => s.nominationsFinished, 'everybody nominated');
-        expect(candidatesIn(t.manager.state!), 'both candidates are on the ballot').toEqual(
-            [a.playerUUID, p2.playerUUID].sort(),
+
+        // Three players named `a`, but the ballot lists the candidate once.
+        expect(candidatesIn(t.manager.state!), 'the ballot does not dedupe the candidate').toEqual([a.playerUUID]);
+        const nominators = t.manager.state!.players
+            .filter((p) => p.nomination === a.playerUUID)
+            .map((p) => p.playerUUID)
+            .sort();
+        expect(nominators, 'the snapshot still shows every nominator').toEqual(
+            [p1.playerUUID, p2.playerUUID, a.playerUUID].sort(),
         );
 
-        // A self-nominated candidate is a normal candidate and can be voted out.
+        // A self-nominated, seconded candidate is a normal candidate and can be voted out.
         await castVotes(
             t,
-            livingClients(t).map((c) => [c, p2] as [Client, Client | false]),
+            livingClients(t).map((c) => [c, a] as [Client, Client | false]),
         );
         await waitForLynch(t);
-        expect(t.manager.state!.votedOutUUID).toBe(p2.playerUUID);
+        expect(t.manager.state!.votedOutUUID).toBe(a.playerUUID);
 
-        expect(p2.errors).toHaveLength(1);
+        expect(p2.errors).toHaveLength(0);
     });
 
     it('12. rejects nominating a player who died in the night', async () => {
@@ -856,7 +859,7 @@ describe('voting: nominations', () => {
             { gameId: t.gameId, nominationUUID: corpse.playerUUID },
             'nominating a corpse',
         );
-        expect(error).toMatch(/not an alive player/i);
+        expect(error).toMatch(/not available/i);
 
         for (const client of t.clients) {
             expect(client.state!.phase).toBe(Phase.DAY);
@@ -899,7 +902,7 @@ describe('voting: nominations', () => {
             { gameId: t.gameId, nominationUUID: b.playerUUID },
             'changing a nomination in the trial stage',
         );
-        expect(late).toMatch(/already has a nomination/i);
+        expect(late).toMatch(/already nominated/i);
 
         for (const client of t.clients) {
             const state = client.state!;
@@ -985,7 +988,7 @@ describe('voting: vote integrity', () => {
             { gameId: t.gameId, voteTargetUUID: a.playerUUID },
             'a vote before nominations finished',
         );
-        expect(early).toMatch(/not finished with nominations/i);
+        expect(early).toMatch(/not started yet/i);
         expect(p1.state!.myVoteTargetUUID, 'the early vote was recorded').toBeNull();
 
         await castNominations(t, [
@@ -1003,7 +1006,7 @@ describe('voting: vote integrity', () => {
             { gameId: t.gameId, voteTargetUUID: p4.playerUUID },
             'a vote for someone who was not nominated',
         );
-        expect(stranger).toMatch(/not nominated/i);
+        expect(stranger).toMatch(/not on trial/i);
         expect(p1.state!.myVoteTargetUUID).toBeNull();
 
         await castVotes(t, [[p1, a]]);

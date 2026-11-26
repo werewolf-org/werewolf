@@ -129,6 +129,39 @@ Three client-side causes were fixed with it:
   game page shows a non-blocking toast (`#game-toast`) instead, and the day nomination confirm re-checks the
   latest snapshot before emitting, like the sheriff screen already did.
 
+**R10 [UX + CORRUPT, fixed] The nomination stage explained a rule nobody could see, and its rejections leaked ids.**
+Reported from a real game: people nominated someone, that person turned out to be nominated already, and
+nothing on screen explained why they could not do it. The screen had two competing lists ("Trial List" and
+"Available for Nomination"), the only way to pass was a pseudo-player at the bottom of the second list
+called "Nominate No One", progress read "0/5 players have nominated" with no hint of who was missing or what
+happens next, and the confirm button always said "Confirm Nomination", even for "no one".
+
+Underneath the copy sat a rules bug. A target could be nominated by exactly one player, first come first
+served, which turns agreement into a race and buys nothing: the trial ballot is just the set of distinct
+named players, with no cap and no ranking, so a second nomination changes the set not at all. The error it
+produced was shown to the player verbatim, UUIDs included: `Player with playerUUID 3f2a… wants to nominate
+9c1b… but this player was already nominated`.
+
+Fixed:
+- Several players may name the same person. `getNominatedPlayers` dedupes, so the ballot lists a candidate
+  once while `players[].nomination` keeps every nominator. `VoteHandler.nominate` lost the exclusivity check.
+- One seat-ordered list of every living player, including those already on trial (chip `On trial · 2`).
+  "No nomination" is a separate outlined button outside the list, not a pseudo-player.
+- Every nomination path is a selection plus one confirm button whose label names the action
+  (`Nominate Anna`, `Nominate Anna too`, `Confirm no nomination`), so a mis-tap cannot submit. The hint under
+  the list explains what the tap will do instead of refusing it.
+- The header states the consequence ("If nobody is nominated, the day ends without a lynch") and the
+  progress names the undecided players ("Waiting for Ben, Clara"). The waiting state keeps updating, so an
+  AFK phone is visible to the whole table.
+- Trial progress says "decided" (abstains count) and the ballot names every nominator.
+- Day-stage rejections are plain sentences now, and `toHumanError` in `socket.service.ts` is the net that
+  keeps any remaining UUID or field-name message off a phone.
+
+Naming the undecided players is fine during nominations because that stage is public. It is deliberately
+**not** done during the trial vote: vote targets are private until the tally resolves, so that stage keeps a
+bare count. That visibility difference is also the answer to "why two stages at all": nominate in the open,
+then decide without seeing which way the room is leaning.
+
 **Observations, deliberately not changed:**
 - The red lady's `#red-lady-waiting-message` never renders: `handleSleepover` advances the turn immediately,
   so she goes straight to the sleep view and learns the outcome at dawn.

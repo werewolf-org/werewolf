@@ -137,7 +137,7 @@ describe('sheriff election: direct vote', () => {
             { gameId: game.gameId, nominationUUID: target.playerUUID },
             'nominate during the election',
         );
-        expect(message).toMatch(/not in Phase DAY/i);
+        expect(message).toMatch(/Nominations are closed/i);
         expect(voter.state!.myNominationUUID).toBeNull();
         expect(voter.state!.sheriffElectionDone).toBe(false);
     });
@@ -154,7 +154,7 @@ describe('sheriff election: direct vote', () => {
             { gameId: game.gameId, voteTargetUUID: victim.playerUUID },
             'vote for a corpse',
         );
-        expect(deadMessage).toMatch(/not an alive player/i);
+        expect(deadMessage).toMatch(/not available/i);
 
         const ghostMessage = await emitExpectError(
             voter,
@@ -162,7 +162,7 @@ describe('sheriff election: direct vote', () => {
             { gameId: game.gameId, voteTargetUUID: '11111111-1111-4111-8111-111111111111' },
             'vote for an unknown player',
         );
-        expect(ghostMessage).toMatch(/not an alive player/i);
+        expect(ghostMessage).toMatch(/not available/i);
 
         expect(voter.state!.myVoteTargetUUID).toBeNull();
         expect(voter.state!.sheriffElectionDone).toBe(false);

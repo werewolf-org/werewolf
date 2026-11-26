@@ -3,7 +3,7 @@ import { createMockGame, createMockPlayer, createGameWithPlayers, setRoles } fro
 import { Phase } from "@shared/phases.js";
 import { Role } from "@shared/roles.js";
 import { VoteHandler, handleSheriffDeath } from "../logic/handlers/vote.handler.js";
-import { isNominationsFinished, isVotingComplete } from "../logic/selectors/vote.selectors.js";
+import { isNominationsFinished, isVotingComplete, getNominatedPlayers } from "../logic/selectors/vote.selectors.js";
 
 describe("vote.handler", () => {
   describe("nominate", () => {
@@ -25,14 +25,18 @@ describe("vote.handler", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.DAY;
       VoteHandler.nominate(game, game.players[0], "p1");
-      expect(() => VoteHandler.nominate(game, game.players[0], "p0")).toThrow("already has a nomination");
+      expect(() => VoteHandler.nominate(game, game.players[0], "p0")).toThrow("already nominated");
     });
 
-    it("throws when nominating player who was already nominated by someone else", () => {
+    it("allows several players to nominate the same target, a second", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.DAY;
       VoteHandler.nominate(game, game.players[0], "p2");
-      expect(() => VoteHandler.nominate(game, game.players[1], "p2")).toThrow("already nominated");
+      VoteHandler.nominate(game, game.players[1], "p2");
+      expect(game.players[0].nominationUUID).toBe("p2");
+      expect(game.players[1].nominationUUID).toBe("p2");
+      // Two nominations, one candidate on the trial ballot.
+      expect(getNominatedPlayers(game)).toEqual(["p2"]);
     });
 
     it("allows different players to nominate different targets", () => {
@@ -47,7 +51,7 @@ describe("vote.handler", () => {
     it("throws outside DAY, so the sheriff election has no nomination stage", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
-      expect(() => VoteHandler.nominate(game, game.players[0], "p1")).toThrow("not in Phase DAY");
+      expect(() => VoteHandler.nominate(game, game.players[0], "p1")).toThrow("Nominations are closed");
       expect(game.players[0].nominationUUID).toBeNull();
     });
 
@@ -74,14 +78,14 @@ describe("vote.handler", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.DAY;
       game.players[2].isAlive = false;
-      expect(() => VoteHandler.nominate(game, game.players[0], "p2")).toThrow("not an alive player");
+      expect(() => VoteHandler.nominate(game, game.players[0], "p2")).toThrow("not available");
       expect(game.players[0].nominationUUID).toBeNull();
     });
 
     it("rejects an unknown candidate (B13)", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.DAY;
-      expect(() => VoteHandler.nominate(game, game.players[0], "does-not-exist")).toThrow("not an alive player");
+      expect(() => VoteHandler.nominate(game, game.players[0], "does-not-exist")).toThrow("not available");
       expect(game.players[0].nominationUUID).toBeNull();
       expect(isNominationsFinished(game)).toBe(false);
     });
@@ -169,7 +173,7 @@ describe("vote.handler", () => {
       game.phase = Phase.DAY;
       game.players[0].nominationUUID = "p1";
       // players[1] nominationUUID is null
-      expect(() => VoteHandler.castLynchVote(game, game.players[0], "p1")).toThrow("has not finished with nominations");
+      expect(() => VoteHandler.castLynchVote(game, game.players[0], "p1")).toThrow("has not started yet");
     });
 
     it("throws when target is not nominated", () => {
@@ -177,7 +181,7 @@ describe("vote.handler", () => {
       game.phase = Phase.DAY;
       game.players[0].nominationUUID = "p0"; // self nomination
       game.players[1].nominationUUID = false;
-      expect(() => VoteHandler.castLynchVote(game, game.players[0], "p1")).toThrow("not nominated");
+      expect(() => VoteHandler.castLynchVote(game, game.players[0], "p1")).toThrow("not on trial");
     });
 
     it("throws when lynchDone is already true", () => {
@@ -186,7 +190,7 @@ describe("vote.handler", () => {
       game.players[0].nominationUUID = "p1";
       game.players[1].nominationUUID = false;
       game.lynchDone = true;
-      expect(() => VoteHandler.castLynchVote(game, game.players[0], "p1")).toThrow("lynch is already done");
+      expect(() => VoteHandler.castLynchVote(game, game.players[0], "p1")).toThrow("already over");
     });
 
     it("allows false (abstain) even if not in nominated list", () => {
@@ -297,14 +301,14 @@ describe("vote.handler", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
       game.players[2].isAlive = false;
-      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p2")).toThrow("not an alive player");
+      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p2")).toThrow("not available");
       expect(game.players[0].voteTargetUUID).toBeNull();
     });
 
     it("rejects an unknown player as the target", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
-      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "does-not-exist")).toThrow("not an alive player");
+      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "does-not-exist")).toThrow("not available");
       expect(game.players[0].voteTargetUUID).toBeNull();
     });
 
@@ -312,7 +316,7 @@ describe("vote.handler", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
       game.sheriffElectionDone = true;
-      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("already done");
+      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("already over");
     });
 
     it("normalises an undefined payload to abstain (B14)", () => {

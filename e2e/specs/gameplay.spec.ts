@@ -8,6 +8,7 @@ import {
     isVisible,
     joinGame,
     newPhone,
+    nominate,
     setName,
     startGameWithPlayers,
     waitUntilHidden,
@@ -259,7 +260,8 @@ test.describe('gameplay', () => {
         for (const phone of phones) {
             await expect(phone.page.locator('#day-nomination-view')).toBeVisible();
         }
-        await expect(gm.locator('#day-available-list')).toContainText('Nominate No One');
+        await expect(gm.locator('#no-nomination-btn')).toHaveText('No nomination');
+        await expect(gm.locator('#day-nomination-list')).toContainText('(You)');
 
         // Nominate a non-wolf, so the lynch cannot end the game before the result screen.
         const voterIndex = 1;
@@ -268,25 +270,24 @@ test.describe('gameplay', () => {
         if (targetIndex < 0) throw new Error(`no lynchable non-wolf in roles ${game.roles.join(', ')}`);
         const targetName = nameOf(targetIndex);
 
-        const candidate = voter.locator('#day-available-list li.nomination-item').filter({ hasText: targetName });
+        const candidate = voter.locator('#day-nomination-list li.nomination-item').filter({ hasText: targetName });
         await expect(candidate).toHaveCount(1);
         await candidate.click();
         await expect(candidate).toHaveClass(/selected/);
+        await expect(voter.locator('#confirm-nomination-btn')).toHaveText(`Nominate ${targetName}`);
 
-        const nominateBtn = voter.locator('#confirm-nomination-btn');
-        await expect(nominateBtn).toBeEnabled();
-        await nominateBtn.click();
+        await nominate(voter, targetName);
 
         // Per-view lock: the nomination is confirmed for me and cannot be repeated.
         const nominationConfirmation = voter.locator('#nomination-confirmed-message');
         await expect(nominationConfirmation).toBeVisible();
-        await expect(nominationConfirmation).toContainText(`You have nominated ${targetName}`);
+        await expect(nominationConfirmation).toContainText(`You nominated ${targetName}`);
         await expect(voter.locator('#day-nomination-controls')).toBeHidden();
 
-        // The trial list is shared: someone else's phone shows the nomination too.
+        // The list is shared: someone else's phone shows the nomination and the on-trial chip.
         const other = phones[(voterIndex + 1) % phones.length]!.page;
-        await expect(other.locator('#day-nominated-list')).toContainText(targetName);
-        await expect(other.locator('#day-nominated-list')).toContainText(`Nominated by ${nameOf(voterIndex)}`);
+        const otherRow = other.locator('#day-nomination-list li.nomination-item').filter({ hasText: targetName });
+        await expect(otherRow).toContainText('On trial');
 
         // The escape hatch fills the missing nominations with abstains and opens the trial.
         await advanceOnce(gm);

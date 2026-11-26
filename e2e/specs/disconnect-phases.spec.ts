@@ -359,13 +359,18 @@ async function advanceUntil(
     throw new Error(`the escape hatch never reached the requested stage (last: ${stepKey(last)})`);
 }
 
-/** Nominates a living player by display name, or "No One" when `target` is null. */
+/** Nominates a living player by display name, or "No nomination" when `target` is null. */
 async function nominate(page: Page, target: string | null): Promise<void> {
-    const item = page.locator('#day-available-list li.nomination-item');
-    const candidate = target ? item.filter({ hasText: target }) : item.filter({ hasText: 'Nominate No One' });
-    await expect(candidate, `no nomination entry for ${target ?? 'No One'}`).toHaveCount(1);
-    await candidate.click();
-    await expect(candidate).toHaveClass(/selected/);
+    if (target) {
+        const candidate = page.locator('#day-nomination-list li.nomination-item').filter({ hasText: target });
+        await expect(candidate, `no nomination entry for ${target}`).toHaveCount(1);
+        await candidate.click();
+        await expect(candidate).toHaveClass(/selected/);
+    } else {
+        const pass = page.locator('#no-nomination-btn');
+        await pass.click();
+        await expect(pass).toHaveClass(/selected/);
+    }
     const confirm = page.locator('#confirm-nomination-btn');
     await expect(confirm).toBeEnabled();
     await confirm.click();
@@ -705,8 +710,8 @@ test.describe('disconnect and reconnect by phase', () => {
         expect(snap.lynchDone).toBe(false);
         expect(snap.role).toBe(roleBefore);
         expect(snap.players).toHaveLength(4);
-        await expect(player.page.locator('#nomination-progress')).toHaveText('0/4 players have nominated');
-        await expect(player.page.locator('#day-nominated-list')).toContainText('No one is on trial yet.');
+        await expect(player.page.locator('#nomination-progress')).toHaveText('0 of 4 decided');
+        await expect(player.page.locator('#day-nomination-list .nomination-chip')).toHaveCount(0);
 
         // Continuity: the returning phone can cast its nomination.
         await waitForPointerReady(player.page);
@@ -879,9 +884,9 @@ test.describe('disconnect and reconnect by phase', () => {
         expect(snap.players).toHaveLength(4);
 
         // One seat, held by this tab and seen once by everybody else.
-        await expect(reopened.locator('#day-available-list')).toContainText(`${nameOf(1)} (You)`);
-        await expect(reopened.locator('#day-available-list .player-name').filter({ hasText: nameOf(1) })).toHaveCount(1);
-        await expect(table.gm.locator('#day-available-list .player-name').filter({ hasText: nameOf(1) })).toHaveCount(1);
+        await expect(reopened.locator('#day-nomination-list')).toContainText(`${nameOf(1)} (You)`);
+        await expect(reopened.locator('#day-nomination-list .player-name').filter({ hasText: nameOf(1) })).toHaveCount(1);
+        await expect(table.gm.locator('#day-nomination-list .player-name').filter({ hasText: nameOf(1) })).toHaveCount(1);
         expect((await requireSnapshot(table.gm)).players.filter((entry) => entry.displayName === nameOf(1))).toHaveLength(1);
     });
 

@@ -490,8 +490,9 @@ function dayNomination(s: Snapshot, me: SnapshotPlayer, rng: Rng, ctx: PolicyCon
     if (rng.bool(ABSTAIN_NOMINATION_PROBABILITY)) {
         return legal('nominate', { gameId: s.gameId, nominationUUID: false });
     }
-    const taken = nominatedUUIDs(s);
-    const options = living(s).filter((p) => !taken.has(p.playerUUID));
+    // Every living player is a legal target, including one already nominated: a second is a
+    // normal action now, so the fuzz run must be able to produce the same-candidate case.
+    const options = living(s);
     return legal('nominate', {
         gameId: s.gameId,
         nominationUUID: options.length > 0 ? rng.pick(options).playerUUID : false,

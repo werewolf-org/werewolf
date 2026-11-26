@@ -19,10 +19,11 @@ const isAlreadyCast = (value: string | false | null | undefined): boolean =>
 
 // A target must be a living player of this game, otherwise the candidate shows up in no list
 // and can never win the vote (the stage would silently resolve to "nobody lynched").
+// The message is read by a human: no UUIDs, no internal field names.
 const assertLivingTarget = (game: Game, targetUUID: string | false, action: string): void => {
     if(typeof targetUUID !== "string") return;
     const target = game.players.find((p) => p.playerUUID === targetUUID);
-    if(!target || !target.isAlive) throw new Error(`Player ${targetUUID} is not an alive player of game ${game.gameId}, so ${action} is not possible`);
+    if(!target || !target.isAlive) throw new Error(`That player is not available, so ${action} is not possible.`);
 }
 
 const resolveLynchVoting = (game: Game): void => {
@@ -118,24 +119,26 @@ export const VoteHandler = {
         // Nominations are the first half of the daily lynch. The sheriff election used to
         // reuse this pipeline ("nominate, then vote") and no longer does: every living player
         // is on the ballot from the start.
-        if(game.phase !== Phase.DAY) throw new Error(`Game ${game.gameId} is not in Phase DAY, so nominating a player is not possible (phase: ${game.phase})`);
-        if(isAlreadyCast(player.nominationUUID)) throw new Error(`Player with playerUUID ${player.playerUUID} already has a nomination`);
+        if(game.phase !== Phase.DAY) throw new Error("Nominations are closed.");
+        if(isAlreadyCast(player.nominationUUID)) throw new Error("You already nominated someone today.");
         const nomination = normalizeTarget(nominationUUID);
-        const nominatedPlayers = getNominatedPlayers(game);
-        if(typeof nomination === "string" && nominatedPlayers.includes(nomination)) throw new Error(`Player with playerUUID ${player.playerUUID} wants to nominate ${nomination} but this player was already nominated`);
-        assertLivingTarget(game, nomination, "nominating this player");
+        // Several players may name the same person: a nomination is a public statement of
+        // suspicion, and agreeing with somebody is the common case. Making the target exclusive
+        // turned that into a first-come-first-served race and a rejection. The trial ballot
+        // dedupes the candidates, so a second changes the set not at all and the count visibly.
+        assertLivingTarget(game, nomination, "nominating");
         player.nominationUUID = nomination;
 
         // fallback: nobody is nominated
         resolveEmptyNominations(game);
     },
     castLynchVote(game: Game, player: Player, targetUUID: string | false | null | undefined): void {
-        if(isAlreadyCast(player.voteTargetUUID)) throw new Error(`Player with playerUUID ${player.playerUUID} already voted`);
-        if(game.lynchDone) throw new Error(`Cannot vote in Game ${game.gameId} since lynch is already done`);
-        if(!isNominationsFinished(game)) throw Error(`Game with Id ${game.gameId} has not finished with nominations, so vote cannot be cast`);
+        if(isAlreadyCast(player.voteTargetUUID)) throw new Error("You already voted in this trial.");
+        if(game.lynchDone) throw new Error("The trial is already over.");
+        if(!isNominationsFinished(game)) throw Error("The trial has not started yet.");
         const target = normalizeTarget(targetUUID);
         const nominatedPlayers = getNominatedPlayers(game);
-        if(typeof target === "string" && !nominatedPlayers.includes(target)) throw new Error(`Player ${target} is not nominated, so voting for this player is not possible`)
+        if(typeof target === "string" && !nominatedPlayers.includes(target)) throw new Error("That player is not on trial.")
 
         player.voteTargetUUID = target;
 
@@ -143,8 +146,8 @@ export const VoteHandler = {
         if (everyoneVoted) resolveLynchVoting(game);
     },
     castSheriffVote(game: Game, player: Player, targetUUID: string | false | null | undefined): void {
-        if(isAlreadyCast(player.voteTargetUUID)) throw new Error(`Player with playerUUID ${player.playerUUID} already voted`);
-        if(game.sheriffElectionDone) throw new Error(`Cannot vote in Game ${game.gameId} since election is already done!`);
+        if(isAlreadyCast(player.voteTargetUUID)) throw new Error("You already voted in this election.");
+        if(game.sheriffElectionDone) throw new Error("The election is already over.");
         // Direct election: no nomination stage, so every living player is a candidate.
         // The target only has to exist and be alive, otherwise a ballot entry could point at
         // a corpse that never appears in any candidate list and the vote silently voids.

@@ -175,9 +175,9 @@ audio pacing or real device behaviour.
 ### Test Coverage
 | File | Tests | Coverage |
 |---|---|---|
-| `vote.selectors.test.ts` | 30 | `isVotingComplete`, `getVoteResult`, `getNominations`, `getNominatedPlayers`, `getVotingWinner` (ties, abstains, sheriff tie-breaker), `getActingPlayers` |
+| `vote.selectors.test.ts` | 31 | `isVotingComplete`, `getVoteResult`, `getNominations`, `getNominatedPlayers` (dedupes a second), `getVotingWinner` (ties, abstains, sheriff tie-breaker), `getActingPlayers` |
 | `night.selectors.test.ts` | 31 | `getWerewolfVotes`, `getWerewolfVictimUUID`, `getNextToWakeUp` (night order, first-night-only roles), `checkPlayerNightRole` (turn, liveness) |
-| `vote.handler.test.ts` | 64 | `nominate` (DAY-only), `castLynchVote`, `castSheriffVote` (direct, no nomination), `readyForNight`, `acceptSheriffRole`, `forceAdvance`, `handleSheriffDeath` |
+| `vote.handler.test.ts` | 64 | `nominate` (DAY-only, several players may name the same target), `castLynchVote`, `castSheriffVote` (direct, no nomination), `readyForNight`, `acceptSheriffRole`, `forceAdvance`, `handleSheriffDeath` |
 | `lobby.handler.test.ts` | 29 | `createGame`, `createNewPlayer`, `roleDistribution` validation, `startGame` atomicity, `closeJoining`, `changeName`, game id uniqueness |
 | `night.handler.test.ts` | 18 | `nextRole`, `forceNextRole`, night resolution (witch heal/kill, lover chain, red lady, sheriff death) |
 | `role.handler.test.ts` | 48 | Werewolf, Seer, Cupid, Witch, RedLady handlers incl. target and turn validation |
@@ -193,12 +193,12 @@ audio pacing or real device behaviour.
 | `e2e/rejoin-hardening.test.ts` | 16 | Concurrent double actions from two sockets, rejoin racing a turn advance, 5-socket storms, seat swaps, A→B→A game moves, unbound/deleted disconnects, dead/GAME_OVER rejoin, two GM tabs, public-state equality |
 | `e2e/sheriff-election.test.ts` | 8 | Direct election (no nomination): plurality, self-vote, abstain, tie → no sheriff, `nominate` rejected, corpse/unknown target rejected, dead ballot ignored, one-step force-advance |
 | `e2e/security.test.ts` | 9 | Manager-only actions, stranger socket, out-of-turn, dead players, target validation, snapshot leaks, escape hatch, intentional death reveal |
-| `e2e/voting.test.ts` | 28 | Every tie shape (incl. three-way and the sheriff as a tied candidate), abstains, nomination collisions, vote integrity, lynch chains, direct-ballot election ordering, `forceAdvance` from each day stage |
+| `e2e/voting.test.ts` | 28 | Every tie shape (incl. three-way and the sheriff as a tied candidate), abstains, same-candidate seconds (the ballot dedupes, the snapshot keeps every nominator), vote integrity, lynch chains, direct-ballot election ordering, `forceAdvance` from each day stage |
 | `e2e/roles-and-night.test.ts` | 27 | Composition extremes (1–3 wolves, no cupid/witch, all five wakers), night-order integrity, cupid/witch/seer/red-lady edges, three rounds of persistence |
 | `e2e/protocol.test.ts` | 23 | Malformed payloads per event, unknown events, replay, concurrent emits, multi-game isolation, socket churn, name/ID validation |
 | `e2e/fuzz.test.ts` | 2 | Seeded random full games: 3 per run by default, invariant checking after every sync, hard-branch coverage report |
 
-Browser suite (`e2e/specs/`, Playwright, ~4.5 min, 72 tests):
+Browser suite (`e2e/specs/`, Playwright, ~3.5 min, 74 tests):
 
 | File | Tests | Coverage |
 |---|---|---|
@@ -213,8 +213,9 @@ Browser suite (`e2e/specs/`, Playwright, ~4.5 min, 72 tests):
 | `audio.spec.ts` | 5 | Narration and atmosphere are Game-Manager-only (measured per phone), no repeats per snapshot, silence before a game |
 | `navigation.spec.ts` | 11 | Deep links, Back/Forward, hash case, two games in one context, reload on distribution and game over, overflow, tap-target size |
 | `live-sync.spec.ts` | 4 | Two live tabs on one seat follow the game (websocket-instrumented, no reload), resume re-announces and catches up, a rejection shows the toast instead of a dialog, a second tab does not steal the role chip |
+| `nominations.spec.ts` | 2 | One list of every living player and a separate "No nomination" button, a second nomination is legal and labelled, progress names the undecided players, all-pass ends the day without a trial |
 
-**Totals: 432 backend tests (297 unit + 135 socket e2e, 22 files) and 72 browser tests.**
+**Totals: 433 backend tests (298 unit + 135 socket e2e, 22 files) and 74 browser tests.**
 
 
 ### Test Helpers
@@ -244,6 +245,9 @@ The game follows a strict phase sequence:
 6.  **DAY**: Discussion and Voting.
     - Day consists of 3 stages: Nominations (discussion), Trial (voting on nominated players), and Results.
     - Voting logic is handled in `VoteHandler.castLynchVote`.
+    - Nominations are public as they happen (`players[].nomination`) and several players may name the same person (a "second"). The trial ballot dedupes the candidates (`getNominatedPlayers`), so a candidate appears once no matter how many nominated them.
+    - If nobody is nominated, the day ends without a trial and without a lynch.
+    - The trial vote is simultaneous and private until it resolves (`voteResults` stays `null`), then the full breakdown is published. That visibility difference is what the two stages are for: commit in the open, then decide without seeing the room.
     - Lynch resolution triggers a return to **NIGHT**.
 7.  **GAME_OVER**: Win condition met.
 

@@ -9,6 +9,7 @@ import {
     isVisible,
     joinGame,
     newPhone,
+    nominate,
     setName,
     startActualGame,
     startGameWithPlayers,
@@ -253,19 +254,11 @@ test.describe('screens', () => {
         const targetRole = game.roles[targetIndex]!;
         const voters = [...phones.keys()].filter((index) => index !== targetIndex).slice(0, 2);
 
-        // Nominations: one real nomination, everybody else abstains.
+        // Nominations: one real nomination, everybody else passes.
         for (let i = 0; i < phones.length; i++) {
             const page = phones[i]!.page;
             await expect(page.locator('#day-nomination-view')).toBeVisible();
-            const list = page.locator('#day-available-list');
-            if (i === voters[0]) {
-                const candidate = list.locator('li.nomination-item').filter({ hasText: targetName });
-                await expect(candidate).toHaveCount(1);
-                await candidate.click();
-            } else {
-                await list.locator('li.nomination-item[data-uuid="false"]').click();
-            }
-            await page.locator('#confirm-nomination-btn').click();
+            await nominate(page, i === voters[0] ? targetName : null);
             if (i < phones.length - 1) {
                 await expect(page.locator('#nomination-confirmed-message')).toBeVisible();
             }
@@ -329,15 +322,7 @@ test.describe('screens', () => {
         // Nominate the wolf, then vote it out.
         for (let i = 0; i < phones.length; i++) {
             const page = phones[i]!.page;
-            const list = page.locator('#day-available-list');
-            if (i === voterIndex) {
-                const candidate = list.locator('li.nomination-item').filter({ hasText: wolfName });
-                await expect(candidate).toHaveCount(1);
-                await candidate.click();
-            } else {
-                await list.locator('li.nomination-item[data-uuid="false"]').click();
-            }
-            await page.locator('#confirm-nomination-btn').click();
+            await nominate(page, i === voterIndex ? wolfName : null);
             if (i < phones.length - 1) await expect(page.locator('#nomination-confirmed-message')).toBeVisible();
         }
         for (const phone of phones) await expect(phone.page.locator('#day-voting-view')).toBeVisible();
@@ -434,8 +419,8 @@ test.describe('screens', () => {
 
         await advanceUntilVisibleOn(lobby, '#day-nomination-view', 14);
         const dayList = phones[1]!.page;
-        await expect(dayList.locator('#day-available-list')).toContainText(LONG_NAME);
+        await expect(dayList.locator('#day-nomination-list')).toContainText(LONG_NAME);
         expect(await pageOverflow(dayList), 'a long name must not widen the day screen').toBeLessThanOrEqual(1);
-        expect(await rowOverflow(dayList, '#day-available-list', LONG_NAME)).toBeLessThanOrEqual(1);
+        expect(await rowOverflow(dayList, '#day-nomination-list', LONG_NAME)).toBeLessThanOrEqual(1);
     });
 });
