@@ -282,9 +282,9 @@ async function readyEveryone(target: TestGame): Promise<void> {
     await target.waitForPhaseEverywhere(Phase.NIGHT);
 }
 
-/** Nobody is nominated, so the round-0 election resolves without a sheriff and the GM opens the day. */
+/** Nobody votes (all abstain), so the round-0 election resolves without a sheriff and the GM opens the day. */
 async function skipElection(target: TestGame): Promise<void> {
-    await castNominations(
+    await castVotes(
         target,
         livingClients(target).map((c) => [c, false] as [Client, Client | false]),
     );
@@ -309,14 +309,9 @@ async function reachDay(target: TestGame): Promise<void> {
     await skipElection(target);
 }
 
-/** Two candidates, `sheriff` gets every vote, then accepts the badge and opens the day. */
+/** Direct vote: everybody backs `sheriff`, who then accepts the badge and opens the day. */
 async function electSheriff(target: TestGame, sheriff: Client, runnerUp: Client): Promise<void> {
-    await castNominations(
-        target,
-        livingClients(target).map(
-            (c) => [c, c === sheriff ? runnerUp : c === runnerUp ? sheriff : false] as [Client, Client | false],
-        ),
-    );
+    expect(runnerUp, 'the runner-up is only there to make the ballot non-trivial').not.toBe(sheriff);
     await castVotes(
         target,
         livingClients(target).map((c) => [c, sheriff] as [Client, Client | false]),
@@ -597,13 +592,6 @@ describe('voting: ties', () => {
         await firstNightAndElection(t);
 
         const [a, b, p1, p2, p3] = livingClients(t) as [Client, Client, Client, Client, Client];
-        await castNominations(t, [
-            [a, b],
-            [b, a],
-            [p1, false],
-            [p2, false],
-            [p3, false],
-        ]);
         // 2-2 with one abstain. There is no incumbent badge, so nothing can break the tie.
         await castVotes(t, [
             [p1, a],
@@ -760,7 +748,7 @@ describe('voting: abstains', () => {
         await firstNightAndElection(t);
 
         const living = livingClients(t);
-        await castNominations(
+        await castVotes(
             t,
             living.map((c) => [c, false] as [Client, Client | false]),
         );
@@ -773,8 +761,15 @@ describe('voting: abstains', () => {
             Phase.SHERIFF_ELECTION,
         );
         expect(resolved.players.some((p) => p.isSheriff)).toBe(false);
-        expect(resolved.voteResults, 'no trial stage happened').toBeNull();
-        expect(resolved.voteProgress).toEqual({ voted: 0, total: 5 });
+        // The direct ballots are still reported, every one of them an explicit abstain.
+        expect(resolved.voteResults).not.toBeNull();
+        expect(Object.keys(resolved.voteResults!).sort()).toEqual(
+            resolved.players.map((p) => p.playerUUID).sort(),
+        );
+        for (const [voter, target] of Object.entries(resolved.voteResults!)) {
+            expect(target, `${voter} abstained`).toBe(false);
+        }
+        expect(resolved.voteProgress).toEqual({ voted: 5, total: 5 });
 
         const intruder = living.find((c) => !c.state!.isManager)!;
         const gate = await rejected(
@@ -1659,13 +1654,7 @@ describe('voting: GM force advance', () => {
             Client,
             Client,
         ];
-        // Nominations must be complete before anyone may vote, so the stage is open but the
-        // ballot is only half filled when the GM steps in.
-        await castNominations(
-            t,
-            livingClients(t).map((c) => [c, c === nominator ? candidate : false] as [Client, Client | false]),
-        );
-        await t.manager.waitFor((s) => s.nominationsFinished, 'the election trial opened');
+        // The direct ballot is only half filled when the GM steps in: no nomination stage exists.
         await castVotes(t, [
             [nominator, candidate],
             [v2, candidate],

@@ -178,7 +178,7 @@ test.describe('roles-ui', () => {
         await expect(witch.locator('#use-heal-btn')).toBeHidden();
 
         await witch.locator('#confirm-witch-actions-btn').click();
-        await waitUntilVisible(witch, '#sheriff-nomination-view');
+        await waitUntilVisible(witch, '#sheriff-voting-view');
         expect(await isVisible(witch, '#night-action-container')).toBe(false);
         await expect(witch.locator('#use-heal-btn')).toHaveCount(0);
 
@@ -306,7 +306,7 @@ test.describe('roles-ui', () => {
 
         // Confirming ends her sub-turn; the witch screens are torn down with it.
         await witch.locator('#confirm-witch-actions-btn').click();
-        await waitUntilVisible(witch, '#sheriff-nomination-view');
+        await waitUntilVisible(witch, '#sheriff-voting-view');
         expect(await isVisible(witch, '#night-action-container')).toBe(false);
         await expect(witch.locator('#use-heal-btn')).toHaveCount(0);
         await expect(witch.locator('#use-kill-btn')).toHaveCount(0);
@@ -468,7 +468,7 @@ test.describe('roles-ui', () => {
         // Resolve the night without dismissing the GM's own popup, so the announcement
         // can be checked on every phone.
         await advanceOnce(game.gm); // skip the witch -> dawn
-        await waitUntilVisible(game.gm, '#sheriff-nomination-view');
+        await waitUntilVisible(game.gm, '#sheriff-voting-view');
 
         for (const phone of phones) await waitUntilVisible(phone.page, '#death-popup-overlay');
         await expect(redLady.locator('#newly-dead-list')).toContainText(hostName);
@@ -610,7 +610,7 @@ test.describe('roles-ui', () => {
         // so the announcement can be checked on every phone.
         await advance(game); // seer -> witch
         await advanceOnce(game.gm); // witch -> dawn
-        await waitUntilVisible(game.gm, '#sheriff-nomination-view');
+        await waitUntilVisible(game.gm, '#sheriff-voting-view');
         for (const phone of phones) await waitUntilVisible(phone.page, '#death-popup-overlay');
         await expect(seer.locator('#newly-dead-list')).toContainText(seerName);
         for (const phone of phones) await dismissDeathPopup(phone.page);

@@ -56,6 +56,15 @@ export class DayPhase extends View {
             confirmNominationBtn.addEventListener('click', () => {
                 const selection = this.selectedNominationUUID;
                 if (selection === null) return;
+                // Someone else may have nominated that player while we were selecting. The
+                // backend rejects it; re-check against the latest snapshot so the tap does
+                // not turn into a rejection the player has to read.
+                if (selection !== false && this.isAlreadyNominated(selection)) {
+                    this.selectedNominationUUID = null;
+                    confirmNominationBtn.disabled = true;
+                    this.updateUI();
+                    return;
+                }
                 if (!this.lockAction('nominate', confirmNominationBtn, () => getState().myNominationUUID == null)) return;
                 socketService.nominate(selection);
             });
@@ -93,6 +102,11 @@ export class DayPhase extends View {
             if (btn) btn.disabled = false;
         }, 3000);
         return true;
+    }
+
+    // Backend truth: a target is taken when some player's nomination points at it.
+    private isAlreadyNominated(playerUUID: string): boolean {
+        return getState().players.some(p => p.nomination === playerUUID);
     }
 
     private updateUI() {

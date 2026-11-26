@@ -33,6 +33,11 @@ export class GamePage extends View {
     private connectionBanner: HTMLElement | null = null;
     private roleChip: HTMLElement | null = null;
     private roleChipName: HTMLElement | null = null;
+
+    // Non-blocking feedback for a rejected action
+    private toastEl: HTMLElement | null = null;
+    private toastMessageEl: HTMLElement | null = null;
+    private toastTimer: number | null = null;
     
     // Track the current sub-view
     private currentPhaseView: View | null = null;
@@ -52,6 +57,8 @@ export class GamePage extends View {
         this.connectionBanner = document.getElementById('connection-banner');
         this.roleChip = document.getElementById('my-role-chip');
         this.roleChipName = document.getElementById('my-role-chip-name');
+        this.toastEl = document.getElementById('game-toast');
+        this.toastMessageEl = document.getElementById('game-toast-message');
 
         this.advanceView = document.getElementById('manager-advance-view');
         this.advanceBtn = document.getElementById('manager-advance-btn') as HTMLButtonElement | null;
@@ -77,7 +84,10 @@ export class GamePage extends View {
         // game (and only that game). Without a stored id we send null so the
         // backend creates a fresh player instead of guessing.
         const playerUUID = getStoredPlayerUUID(this.gameId);
-        setState({ playerUUID });
+        // Keep the gameId in the store as well. A reconnect that fires before the first
+        // snapshot arrives reads gameId from here; without it the socket layer skipped the
+        // re-announce and the phone stayed on a stale screen until the next manual refresh.
+        setState({ gameId: this.gameId, playerUUID });
 
         this.deathsInitialized = false;
         this.knownDeadUUIDs.clear();
@@ -108,6 +118,12 @@ export class GamePage extends View {
                 this.renderJoinError(message);
                 return;
             }
+
+            // Mid-game rejection (double tap, a candidate that was already taken, an
+            // action the server does not allow). It must not block the page: an alert()
+            // freezes timers, and a frozen socket cannot answer its ping, which drops
+            // the connection and makes the phone look stuck until it is refreshed.
+            this.showToast(message);
 
             // The rejected advance (e.g. no longer the manager's turn to skip) must
             // not leave the button stuck in its disabled state.
@@ -160,9 +176,24 @@ export class GamePage extends View {
 
     unmount(): void {
         super.unmount();
+        if (this.toastTimer !== null) {
+            window.clearTimeout(this.toastTimer);
+            this.toastTimer = null;
+        }
         if (this.currentPhaseView) {
             this.currentPhaseView.unmount();
         }
+    }
+
+    private showToast(message: string): void {
+        if (!this.toastEl || !this.toastMessageEl) return;
+        this.toastMessageEl.textContent = message;
+        this.toastEl.style.display = 'block';
+        if (this.toastTimer !== null) window.clearTimeout(this.toastTimer);
+        this.toastTimer = window.setTimeout(() => {
+            this.toastTimer = null;
+            if (this.toastEl) this.toastEl.style.display = 'none';
+        }, 4000);
     }
 
     private updateStatusStrip(): void {

@@ -6,8 +6,11 @@ import { audioService } from '../../audio.service';
 import { escapeHtml } from '../../html';
 import { Phase } from '@shared/phases';
 
+// The sheriff is elected by a direct vote: every living player is a candidate from the
+// first snapshot. There is deliberately no nomination stage (unlike the daily lynch),
+// because the election happens once, immediately after the first night, and a nomination
+// round on top of the vote only added a second way to get stuck.
 export class SheriffElectionPhase extends View {
-    private selectedNominationUUID: string | false | null = null;
     private selectedVoteUUID: string | false | null = null;
     private lockedActions = new Set<string>();
     // The result line is one-shot per mount; the subscription also fires on the
@@ -23,7 +26,6 @@ export class SheriffElectionPhase extends View {
         audioService.playNarration('sheriff_voting', 'overwrite');
 
         // Reactive Subscriptions (the first invoke paints, see subscribeSelector)
-        subscribeSelector(this, s => s.nominationsFinished, () => this.updateUI());
         subscribeSelector(this, s => s.sheriffElectionDone, () => {
             if (getState().sheriffElectionDone && !this.playedResultNarration) {
                 this.playedResultNarration = true;
@@ -32,7 +34,6 @@ export class SheriffElectionPhase extends View {
             }
             this.updateUI();
         });
-        subscribeSelector(this, s => s.myNominationUUID, () => this.updateUI());
         subscribeSelector(this, s => s.myVoteTargetUUID, () => this.updateUI());
         subscribeSelector(this, s => s.voteProgress, () => this.updateUI());
         subscribeSelector(this, s => s.players, () => this.updateUI());
@@ -41,27 +42,6 @@ export class SheriffElectionPhase extends View {
     }
 
     private setupEventListeners() {
-        // Nomination confirm
-        const confirmNomBtn = document.getElementById('confirm-sheriff-nomination-btn') as HTMLButtonElement | null;
-        if (confirmNomBtn) {
-            confirmNomBtn.addEventListener('click', () => {
-                const selection = this.selectedNominationUUID;
-                if (selection === null) return;
-                // Someone else may have nominated that player while we were selecting:
-                // the backend rejects both an already-nominated target and a second
-                // nomination, so re-check against the latest snapshot instead of
-                // letting the socket error alert fire.
-                if (this.isAlreadyNominated(selection)) {
-                    this.selectedNominationUUID = null;
-                    confirmNomBtn.disabled = true;
-                    this.updateUI();
-                    return;
-                }
-                if (!this.lockAction('nominate', confirmNomBtn, () => getState().myNominationUUID == null)) return;
-                socketService.nominate(selection);
-            });
-        }
-        // Vote confirm
         const confirmVoteBtn = document.getElementById('confirm-sheriff-vote-btn') as HTMLButtonElement | null;
         if (confirmVoteBtn) {
             confirmVoteBtn.addEventListener('click', () => {
@@ -90,7 +70,7 @@ export class SheriffElectionPhase extends View {
 
     // Disable an action button on the first tap so a double tap cannot emit twice.
     // A successful action answers with a fresh snapshot; if nothing changed within
-    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
+    // the grace period, treat it as a rejection and re-arm.
     private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
         if (this.lockedActions.has(key)) return false;
         this.lockedActions.add(key);
@@ -103,126 +83,20 @@ export class SheriffElectionPhase extends View {
         return true;
     }
 
-    // Backend truth: getNominatedPlayers collects every `nominationUUID` that is a
-    // string, so this map's keys are exactly the players that may be voted for.
-    private nominatorByTarget(): Record<string, string> {
-        const state = getState();
-        const map: Record<string, string> = {};
-        state.players.forEach(p => {
-            if (typeof p.nomination === 'string') map[p.nomination] = p.displayName;
-        });
-        return map;
-    }
-
-    private isAlreadyNominated(playerUUID: string | false): boolean {
-        if (playerUUID === false) return false;
-        return !!this.nominatorByTarget()[playerUUID];
-    }
-
     private updateUI() {
         const state = getState();
-        const nomView = document.getElementById('sheriff-nomination-view');
         const voteView = document.getElementById('sheriff-voting-view');
         const resultView = document.getElementById('sheriff-result-view');
 
         if (state.sheriffElectionDone) {
-            if (nomView) nomView.style.display = 'none';
             if (voteView) voteView.style.display = 'none';
             if (resultView) resultView.style.display = 'block';
             this.renderResultView();
-        } else if (state.nominationsFinished) {
-            if (nomView) nomView.style.display = 'none';
+        } else {
             if (voteView) voteView.style.display = 'block';
             if (resultView) resultView.style.display = 'none';
             this.renderVotingView();
-        } else {
-            if (nomView) nomView.style.display = 'block';
-            if (voteView) voteView.style.display = 'none';
-            if (resultView) resultView.style.display = 'none';
-            this.renderNominationView();
         }
-    }
-
-    private renderNominationView() {
-        const state = getState();
-        const me = state.players.find(p => p.playerUUID === state.playerUUID);
-        const isDead = !!me && !me.isAlive;
-        const hasNominated = state.myNominationUUID !== null && state.myNominationUUID !== undefined;
-
-        const controls = document.getElementById('sheriff-nomination-controls');
-        const waitingMsg = document.getElementById('sheriff-nomination-confirmed-message');
-        const listEl = document.getElementById('sheriff-nomination-list');
-
-        if (isDead || hasNominated) {
-            if (controls) controls.style.display = 'none';
-            if (waitingMsg) {
-                waitingMsg.style.display = 'block';
-                if (isDead) waitingMsg.querySelector('p')!.innerText = 'The dead cannot nominate.';
-            }
-            if (listEl) listEl.style.pointerEvents = 'none';
-        } else {
-            if (controls) controls.style.display = 'flex';
-            if (waitingMsg) waitingMsg.style.display = 'none';
-            if (listEl) listEl.style.pointerEvents = 'auto';
-        }
-
-        if (listEl) this.renderNominationList(listEl);
-    }
-
-    private renderNominationList(listEl: HTMLElement) {
-        const state = getState();
-        const players = state.players.filter(p => p.isAlive);
-        const nominatorByTarget = this.nominatorByTarget();
-        const abstainSelected = this.selectedNominationUUID === false || state.myNominationUUID === false;
-
-        listEl.innerHTML = players.map(p => {
-            const isMe = p.playerUUID === state.playerUUID;
-            const takenBy = nominatorByTarget[p.playerUUID];
-
-            // A target can only be nominated once (VoteHandler.nominate rejects the
-            // rest), so show taken candidates as a read-only hint instead of offering
-            // a choice that would end in a raw socket error alert.
-            if (takenBy) {
-                return `
-                    <li class="pixel-list-item" style="opacity: 0.6;" data-uuid="${p.playerUUID}">
-                        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                            <span class="player-name">${escapeHtml(p.displayName || 'Unnamed Player')}${isMe ? ' (You)' : ''}</span>
-                            <span class="fog-text" style="font-size: 0.85rem;">Nominated by ${escapeHtml(takenBy)}</span>
-                        </div>
-                    </li>
-                `;
-            }
-
-            const isSelected = this.selectedNominationUUID === p.playerUUID || state.myNominationUUID === p.playerUUID;
-            return `
-                <li class="pixel-list-item selectable-player ${isSelected ? 'selected' : ''}" data-uuid="${p.playerUUID}">
-                    <span class="player-dot alive"></span>
-                    <span class="player-name">
-                        ${escapeHtml(p.displayName || 'Unnamed Player')}${isMe ? ' (You)' : ''}
-                    </span>
-                </li>
-            `;
-        }).join('') + `
-            <li class="pixel-list-item selectable-player ${abstainSelected ? 'selected' : ''}" data-uuid="false" style="margin-top: 10px; border-top: 1px dashed var(--border-main);">
-                <span class="player-dot" style="background: var(--text-muted)"></span>
-                <span class="player-name">Abstain from Nomination</span>
-            </li>
-        `;
-
-        const items = listEl.querySelectorAll('.selectable-player');
-        items.forEach(item => {
-            item.addEventListener('click', () => {
-                const me = getState().players.find(p => p.playerUUID === getState().playerUUID);
-                const myNomination = getState().myNominationUUID;
-                if ((myNomination !== null && myNomination !== undefined) || !me?.isAlive) return;
-                items.forEach(i => i.classList.remove('selected'));
-                item.classList.add('selected');
-                const uuid = item.getAttribute('data-uuid');
-                this.selectedNominationUUID = uuid === 'false' ? false : uuid;
-                const confirmBtn = document.getElementById('confirm-sheriff-nomination-btn') as HTMLButtonElement;
-                if (confirmBtn) confirmBtn.disabled = false;
-            });
-        });
     }
 
     private renderVotingView() {
@@ -262,15 +136,12 @@ export class SheriffElectionPhase extends View {
 
     private renderVoteList(listEl: HTMLElement) {
         const state = getState();
-        // `p.nomination` is the target that player nominated, so the ballot has to be
-        // filtered by the *reverse* map (same as day.ts). Filtering on
-        // `typeof p.nomination === 'string'` listed the nominators instead, and every
-        // vote for them then failed the backend's getNominatedPlayers() check.
-        const nominatorByTarget = this.nominatorByTarget();
-        const nominatedPlayers = state.players.filter(p => p.isAlive && nominatorByTarget[p.playerUUID]);
+        // Every living player is a candidate. Voting for yourself is allowed, exactly like
+        // nominating yourself in the daily lynch.
+        const candidates = state.players.filter(p => p.isAlive);
         const abstainSelected = this.selectedVoteUUID === false || state.myVoteTargetUUID === false;
 
-        listEl.innerHTML = nominatedPlayers.map(p => {
+        listEl.innerHTML = candidates.map(p => {
             const isMe = p.playerUUID === state.playerUUID;
             const isSelected = this.selectedVoteUUID === p.playerUUID || state.myVoteTargetUUID === p.playerUUID;
             return `

@@ -1,4 +1,15 @@
 <div class="app-container">
+    <!-- A rejected action is shown here instead of a blocking alert(). An alert freezes the
+         page's timers, which on a phone means the socket cannot answer its own ping and the
+         connection drops - a single "already nominated" could turn into a reconnect storm. -->
+    <div id="game-toast" role="status" aria-live="polite" style="display: none; position: fixed;
+         left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 1000; max-width: 90vw;
+         background: var(--card-bg, #1b1b1f); color: var(--text-main, #fff); border: 2px solid var(--danger, #b3261e);
+         border-radius: 8px; padding: 10px 14px; font-size: 0.85rem; text-align: center;
+         box-shadow: 0 4px 16px rgba(0,0,0,0.4);">
+        <span id="game-toast-message"></span>
+    </div>
+
     <!-- Visible whenever the socket is down while a game is running: a lost connection used
          to look exactly like "nobody has acted yet" for up to the ping timeout. -->
     <div id="connection-banner" style="display: none; position: sticky; top: 0; z-index: 900;

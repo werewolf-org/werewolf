@@ -71,14 +71,12 @@ const resolveSheriffVoting = (game: Game): void  => {
 }
 
 // Nomination round resolution: once every living player has nominated and nobody was nominated,
-// the stage ends without a candidate (no lynch / no sheriff).
+// the day ends without a candidate. Nominations only exist for the daily lynch; the sheriff
+// election has no nomination stage (every living player is a candidate by default).
 const resolveEmptyNominations = (game: Game): boolean => {
+    if(game.phase !== Phase.DAY) return false;
     if(!isNominationsFinished(game) || getNominatedPlayers(game).length > 0) return false;
-    if(game.phase === Phase.DAY) lynchDone(game, null);
-    else if(game.phase === Phase.SHERIFF_ELECTION) {
-        game.sheriffUUID = null;
-        game.sheriffElectionDone = true;
-    }
+    lynchDone(game, null);
     return true;
 }
 
@@ -117,6 +115,10 @@ const fillMissingVotes = (game: Game): void => {
 
 export const VoteHandler = {
     nominate(game: Game, player: Player, nominationUUID: string | false | null | undefined) {
+        // Nominations are the first half of the daily lynch. The sheriff election used to
+        // reuse this pipeline ("nominate, then vote") and no longer does: every living player
+        // is on the ballot from the start.
+        if(game.phase !== Phase.DAY) throw new Error(`Game ${game.gameId} is not in Phase DAY, so nominating a player is not possible (phase: ${game.phase})`);
         if(isAlreadyCast(player.nominationUUID)) throw new Error(`Player with playerUUID ${player.playerUUID} already has a nomination`);
         const nomination = normalizeTarget(nominationUUID);
         const nominatedPlayers = getNominatedPlayers(game);
@@ -143,10 +145,11 @@ export const VoteHandler = {
     castSheriffVote(game: Game, player: Player, targetUUID: string | false | null | undefined): void {
         if(isAlreadyCast(player.voteTargetUUID)) throw new Error(`Player with playerUUID ${player.playerUUID} already voted`);
         if(game.sheriffElectionDone) throw new Error(`Cannot vote in Game ${game.gameId} since election is already done!`);
-        if(!isNominationsFinished(game)) throw Error(`Game with Id ${game.gameId} has not finished with nominations, so vote cannot be cast`);
+        // Direct election: no nomination stage, so every living player is a candidate.
+        // The target only has to exist and be alive, otherwise a ballot entry could point at
+        // a corpse that never appears in any candidate list and the vote silently voids.
         const target = normalizeTarget(targetUUID);
-        const nominatedPlayers = getNominatedPlayers(game);
-        if(typeof target === "string" && !nominatedPlayers.includes(target)) throw new Error(`Player ${target} is not nominated, so voting for this player is not possible`)
+        assertLivingTarget(game, target, "voting for this player");
 
         player.voteTargetUUID = target;
 
@@ -196,8 +199,7 @@ export const VoteHandler = {
         }
         if(game.phase === Phase.SHERIFF_ELECTION) {
             if(!game.sheriffElectionDone) {
-                if(!isNominationsFinished(game)) fillMissingNominations(game);
-                if(resolveEmptyNominations(game)) return;
+                // Direct election: there is no nomination stage to skip, only missing ballots.
                 fillMissingVotes(game);
                 resolveSheriffVoting(game);
                 return;

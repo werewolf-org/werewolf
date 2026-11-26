@@ -494,14 +494,10 @@ async function lynch(target: TestGame, victim: Client): Promise<void> {
     }
 }
 
-/** GM path: nobody is nominated, so the election resolves without a sheriff and the GM opens the day. */
+/** GM path: nobody votes, so the election resolves without a sheriff and the GM opens the day. */
 async function skipSheriffElection(target: TestGame): Promise<void> {
     await target.waitForPhaseEverywhere(Phase.SHERIFF_ELECTION);
-    await nominateAll(target, () => false);
-    await target.manager.waitFor(
-        (s) => s.phase === Phase.SHERIFF_ELECTION && s.sheriffElectionDone,
-        'sheriff election resolved without a candidate',
-    );
+    await voteAll(target, () => false, (s) => s.sheriffElectionDone, 'sheriff election resolved without a candidate');
     target.manager.socket.emit('acceptSheriffRole', { gameId: target.gameId });
     await target.waitForPhaseEverywhere(Phase.DAY);
 }

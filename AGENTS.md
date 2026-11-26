@@ -47,7 +47,7 @@ The `GameManager` is the central entry point for all game traffic (called from `
 These modules contain the "Doers"—the only logic permitted to modify the `Game` and `Player` objects.
 - **`lobby.handler.ts`**: Manages the pre-game lifecycle (creation, joining, name changes) and the complex role distribution logic.
 - **`night.handler.ts`**: Controls the progression of night turns. It resolves all night actions (Werewolf kills, Witch potions, Red Lady visits) into a "morning report" of deaths and transitions the game to the next phase.
-- **`vote.handler.ts`**: Reusable logic for both Lynch and Sheriff election voting. It handles vote casting and resolves the outcome, including tie-breaking rules.
+- **`vote.handler.ts`**: Reusable logic for both Lynch and Sheriff election voting. It handles vote casting and resolves the outcome, including tie-breaking rules. The daily lynch uses a nomination round before the vote; the sheriff election does **not**: every living player is a candidate from the start and the vote resolves by plurality.
 - **`role.handler.ts`**: Contains the specific action logic for individual roles (e.g., Werewolf consensus, Seer reveals, Cupid's bond).
 
 ### 3. Derived State (`selectors/`)
@@ -59,6 +59,7 @@ These modules contain the "Readers"—pure utility functions that calculate info
 The `SyncProvider` is responsible for building the **Tailored Snapshots**. 
 - It aggregates the current game state and authorizations into a customized JSON patch for each specific player.
 - It ensures players only see what they are allowed to (e.g., a Villager doesn't see Werewolf votes).
+- Each snapshot is delivered to **every socket bound to that player's seat**, not just the newest one. A phone can hold a seat through a second tab, a reopened link, or a reconnect that reaches the server before the old socket times out; all of those screens stay live and any of them may act (`GameManager.socketSeats` / `seatSockets`). Binding only the newest socket used to freeze every other tab until a manual refresh.
 - **Exception**: when the phase is `GAME_OVER` it reveals all roles and statuses for the summary screen; a dead player's role is revealed as soon as they die (this is intentional, the death popup shows it).
 
 ## Communication Flow
@@ -73,7 +74,7 @@ Events handled include:
 - **Lobby**: `createGame`, `joinGame`, `changeName`, `closeJoining`, `roleDistribution`, `startGame`
 - **Night Roles**: `werewolfVote`, `sleepover` (Red Lady), `revealRole` / `seerConfirmed` (Seer), `bindLovers` / `confirmLoverBond` (Cupid), `usePotion` / `witchConfirms` (Witch)
 - **Day Actions**: `nominate`, `vote`, `readyForNight`
-- **Sheriff Election**: `nominate`, `vote`, `acceptSheriffRole`
+- **Sheriff Election**: `vote` (direct, no nomination), `acceptSheriffRole`
 - **Lifecycle**: `disconnect`
 
 ## Data Storage (`backend/src/store/`)
@@ -176,24 +177,28 @@ audio pacing or real device behaviour.
 |---|---|---|
 | `vote.selectors.test.ts` | 30 | `isVotingComplete`, `getVoteResult`, `getNominations`, `getNominatedPlayers`, `getVotingWinner` (ties, abstains, sheriff tie-breaker), `getActingPlayers` |
 | `night.selectors.test.ts` | 31 | `getWerewolfVotes`, `getWerewolfVictimUUID`, `getNextToWakeUp` (night order, first-night-only roles), `checkPlayerNightRole` (turn, liveness) |
-| `vote.handler.test.ts` | 61 | `nominate`, `castLynchVote`, `castSheriffVote`, `readyForNight`, `acceptSheriffRole`, `forceAdvance`, `handleSheriffDeath` |
+| `vote.handler.test.ts` | 64 | `nominate` (DAY-only), `castLynchVote`, `castSheriffVote` (direct, no nomination), `readyForNight`, `acceptSheriffRole`, `forceAdvance`, `handleSheriffDeath` |
 | `lobby.handler.test.ts` | 29 | `createGame`, `createNewPlayer`, `roleDistribution` validation, `startGame` atomicity, `closeJoining`, `changeName`, game id uniqueness |
 | `night.handler.test.ts` | 18 | `nextRole`, `forceNextRole`, night resolution (witch heal/kill, lover chain, red lady, sheriff death) |
 | `role.handler.test.ts` | 48 | Werewolf, Seer, Cupid, Witch, RedLady handlers incl. target and turn validation |
 | `game.store.test.ts` | 10 | `GameStore` singleton, CRUD, `hasGame`, `cleanupOldGames` |
 | `game.manager.test.ts` | 17 | Manager authority, join/rejoin/disconnect, dead players, `managerAdvance` |
+| `socket-seats.test.ts` | 7 | Several sockets on one seat: fan-out to all, acting from either, promotion on disconnect, last close clears the seat, GM rights on every tab, moving a socket between games |
 | `sync.provider.test.ts` | 23 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info |
 | `scenarios.test.ts` | 20 | **Full game simulations**: multi-round games, couple wins, all-abstain, witch dual potion, sheriff tie-breaker, red lady death, dead-lock scenarios |
 | `e2e/smoke.test.ts` | 2 | The harness itself: lobby to first night, per-player snapshots |
 | `e2e/game-flow.test.ts` | 11 | Complete nights (heal, poison, red lady), sheriff election, full day, all three win conditions, sheriff death badge clear, dead-GM election exit |
 | `e2e/reconnect.test.ts` | 5 | Reload mid-day, network blip with new socket id, lobby refresh, post-lobby rejoin, disconnect mid-night |
+| `e2e/rejoin.test.ts` | 4 | Two live sockets on one seat: fan-out to both, either may act, closing the newer one keeps the older live, churn, GM second tab |
+| `e2e/rejoin-hardening.test.ts` | 16 | Concurrent double actions from two sockets, rejoin racing a turn advance, 5-socket storms, seat swaps, A→B→A game moves, unbound/deleted disconnects, dead/GAME_OVER rejoin, two GM tabs, public-state equality |
+| `e2e/sheriff-election.test.ts` | 8 | Direct election (no nomination): plurality, self-vote, abstain, tie → no sheriff, `nominate` rejected, corpse/unknown target rejected, dead ballot ignored, one-step force-advance |
 | `e2e/security.test.ts` | 9 | Manager-only actions, stranger socket, out-of-turn, dead players, target validation, snapshot leaks, escape hatch, intentional death reveal |
-| `e2e/voting.test.ts` | 28 | Every tie shape (incl. three-way and the sheriff as a tied candidate), abstains, nomination collisions, vote integrity, lynch chains, election ordering, `forceAdvance` from each day stage |
+| `e2e/voting.test.ts` | 28 | Every tie shape (incl. three-way and the sheriff as a tied candidate), abstains, nomination collisions, vote integrity, lynch chains, direct-ballot election ordering, `forceAdvance` from each day stage |
 | `e2e/roles-and-night.test.ts` | 27 | Composition extremes (1–3 wolves, no cupid/witch, all five wakers), night-order integrity, cupid/witch/seer/red-lady edges, three rounds of persistence |
 | `e2e/protocol.test.ts` | 23 | Malformed payloads per event, unknown events, replay, concurrent emits, multi-game isolation, socket churn, name/ID validation |
 | `e2e/fuzz.test.ts` | 2 | Seeded random full games: 3 per run by default, invariant checking after every sync, hard-branch coverage report |
 
-Browser suite (`e2e/specs/`, Playwright, ~4.5 min, 67 tests):
+Browser suite (`e2e/specs/`, Playwright, ~4.5 min, 72 tests):
 
 | File | Tests | Coverage |
 |---|---|---|
@@ -204,9 +209,12 @@ Browser suite (`e2e/specs/`, Playwright, ~4.5 min, 67 tests):
 | `robustness.spec.ts` | 5 | Failed join, gate overlay, double-tap create, stray-tap guard, GM-only control |
 | `escaping.spec.ts` | 2 | HTML payload in a player name inert in lobby, day and death popup |
 | `roles-ui.spec.ts` | 10 | Witch heal/poison/both, seer, cupid bond on both lovers, werewolf pack, villager, dead role never wakes |
-| `screens.spec.ts` | 5 | Sheriff election, day result, game over, 10-player lobby, 40-char name |
+| `screens.spec.ts` | 6 | Sheriff direct election and abstain-only election, day result, game over, 10-player lobby, 40-char name |
 | `audio.spec.ts` | 5 | Narration and atmosphere are Game-Manager-only (measured per phone), no repeats per snapshot, silence before a game |
 | `navigation.spec.ts` | 11 | Deep links, Back/Forward, hash case, two games in one context, reload on distribution and game over, overflow, tap-target size |
+| `live-sync.spec.ts` | 4 | Two live tabs on one seat follow the game (websocket-instrumented, no reload), resume re-announces and catches up, a rejection shows the toast instead of a dialog, a second tab does not steal the role chip |
+
+**Totals: 432 backend tests (297 unit + 135 socket e2e, 22 files) and 72 browser tests.**
 
 
 ### Test Helpers
@@ -230,7 +238,8 @@ The game follows a strict phase sequence:
     - `role.handler.ts` manages the transition between roles using `nextRole`.
     - An action is only valid when the player's role is `activeNightRole` *and* the player is alive.
 5.  **SHERIFF_ELECTION**: Occurs after the first Night (Round 0).
-    - The village votes for a Sheriff.
+    - The village votes for a Sheriff **directly**: every living player is a candidate, there is no nomination stage (unlike the daily lynch).
+    - Plurality wins. A tie or an all-abstain election elects nobody.
     - Resolution requires the elected Sheriff to accept the badge or the GM to continue.
 6.  **DAY**: Discussion and Voting.
     - Day consists of 3 stages: Nominations (discussion), Trial (voting on nominated players), and Results.

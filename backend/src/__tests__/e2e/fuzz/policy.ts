@@ -424,54 +424,33 @@ function ensureElection(s: Snapshot, rng: Rng, ctx: PolicyContext): void {
     ctx.memory.electionTarget = rng.pick(pool).playerUUID;
 }
 
-function electionNomination(s: Snapshot, me: SnapshotPlayer, rng: Rng, ctx: PolicyContext): Action | null {
-    if (!me.isAlive || s.myNominationUUID !== null) return null;
-
-    if (ctx.memory.electionTarget !== null) {
-        const aliveSorted = living(s).map((p) => p.playerUUID).sort();
-        return legal('nominate', {
-            gameId: s.gameId,
-            nominationUUID: aliveSorted.indexOf(me.playerUUID) === 0 ? ctx.memory.electionTarget : false,
-        }, 'sheriff-declines');
-    }
-
-    if (ctx.plan.branches.noSheriff) {
-        return legal('nominate', { gameId: s.gameId, nominationUUID: false }, 'no-sheriff');
-    }
-    if (rng.bool(ABSTAIN_NOMINATION_PROBABILITY)) {
-        return legal('nominate', { gameId: s.gameId, nominationUUID: false });
-    }
-    const taken = nominatedUUIDs(s);
-    const options = living(s).filter((p) => !taken.has(p.playerUUID));
-    return legal('nominate', {
-        gameId: s.gameId,
-        nominationUUID: options.length > 0 ? rng.pick(options).playerUUID : false,
-    });
-}
-
 function electionVote(s: Snapshot, me: SnapshotPlayer, rng: Rng, ctx: PolicyContext): Action | null {
     if (!me.isAlive || s.myVoteTargetUUID !== null) return null;
-    const candidates = nominees(s);
+    // Direct election: every living player is a candidate, there is no nomination stage.
+    const candidates = living(s).map((p) => p.playerUUID);
+    if (candidates.length === 0) return null;
 
-    if (ctx.memory.electionTarget !== null && candidates.includes(ctx.memory.electionTarget)) {
+    if (ctx.memory.electionTarget !== null) {
         // Everybody backs the single coordinated candidate -> a unique winner, not a tie.
         return legal('vote', { gameId: s.gameId, voteTargetUUID: ctx.memory.electionTarget }, 'sheriff-declines');
     }
 
-    if (candidates.length === 0 || rng.bool(ABSTAIN_VOTE_PROBABILITY)) {
+    if (ctx.plan.branches.noSheriff) {
+        return legal('vote', { gameId: s.gameId, voteTargetUUID: false }, 'no-sheriff');
+    }
+    if (rng.bool(ABSTAIN_VOTE_PROBABILITY)) {
         return legal('vote', { gameId: s.gameId, voteTargetUUID: false });
     }
     return legal('vote', { gameId: s.gameId, voteTargetUUID: rng.pick(candidates) });
 }
 
 function sheriffElectionAction(s: Snapshot, me: SnapshotPlayer, rng: Rng, ctx: PolicyContext): Action | null {
-    // Nominating and voting need a living player; accepting the result does not: the game
-    // explicitly lets a dead GM open the day when the election produced no sheriff.
+    // Voting needs a living player; accepting the result does not: the game explicitly lets a
+    // dead GM open the day when the election produced no sheriff.
     if (!s.sheriffElectionDone) {
         ensureElection(s, rng, ctx);
+        return electionVote(s, me, rng, ctx);
     }
-    if (!s.nominationsFinished) return electionNomination(s, me, rng, ctx);
-    if (!s.sheriffElectionDone) return electionVote(s, me, rng, ctx);
 
     const sheriff = s.players.find((p) => p.isSheriff)?.playerUUID ?? null;
     if (!sheriff) return s.isManager ? accept(s) : null;

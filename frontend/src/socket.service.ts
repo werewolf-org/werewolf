@@ -5,6 +5,8 @@ import { navigate } from './router';
 class SocketService {
     private socket: Socket | null = null;
     private static instance: SocketService;
+    // DOM-level "the user came back" listeners are registered once, not on every reconnect.
+    private domListenersAttached = false;
 
     // Singleton accessor
     public static getInstance(): SocketService {
@@ -140,6 +142,16 @@ class SocketService {
 
     // --- Listeners (Dispatch to Store/Router) ---
 
+    // Re-announce the seat we already hold. joinGame is idempotent on the server: it binds
+    // this socket to the seat and answers with a tailored snapshot. It is the single
+    // catch-up path for every shape of return (reconnect, tab resume, network online).
+    private rejoinCurrentGame(): void {
+        const { gameId, playerUUID } = getState();
+        if (gameId && playerUUID && this.socket?.connected) {
+            this.joinGame(gameId, playerUUID);
+        }
+    }
+
     private setupListeners() {
         if (!this.socket) return;
 
@@ -151,10 +163,7 @@ class SocketService {
             // Every (re)connect gets a fresh socket.id while the server still maps our
             // seat to the previous one. Re-announce ourselves before anything else
             // depends on the socketId -> player mapping.
-            const { gameId, playerUUID } = getState();
-            if (gameId && playerUUID) {
-                this.joinGame(gameId, playerUUID);
-            }
+            this.rejoinCurrentGame();
 
             setState({ isConnected: true, connectionError: null });
         });
@@ -173,13 +182,10 @@ class SocketService {
 
         this.socket.on('error', (data: { message: string }) => {
             console.error('Socket Error:', data.message);
+            // Non-blocking: the game page renders this as a toast. alert() freezes the
+            // page's timers, so a rejected action could stop the socket from answering
+            // its ping and take the whole connection down with it.
             setState({ lastError: data.message });
-
-            // Without a phase the game page renders its own terminal error state.
-            // Every other view still relies on the alert for feedback.
-            if (getState().phase !== null) {
-                alert(data.message);
-            }
         });
 
         // --- Game Lifecycle Events ---
@@ -205,6 +211,19 @@ class SocketService {
             setState({ ...data, lastError: null });
         })
 
+        // Phones freeze the page (and its timers) when the screen locks or the browser is
+        // sent to the background. On resume the socket can still look connected while the
+        // server has already dropped it, and snapshots that arrived in between can be
+        // stuck in the socket's buffer. Asking for the current state is idempotent and is
+        // what makes a returning phone catch up without a manual refresh.
+        if (!this.domListenersAttached) {
+            this.domListenersAttached = true;
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') this.rejoinCurrentGame();
+            });
+            window.addEventListener('pageshow', () => this.rejoinCurrentGame());
+            window.addEventListener('online', () => this.rejoinCurrentGame());
+        }
     }
 }
 

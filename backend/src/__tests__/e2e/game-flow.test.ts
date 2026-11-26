@@ -292,24 +292,18 @@ async function readyForNight(target: TestGame): Promise<void> {
     await target.waitForPhaseEverywhere(Phase.NIGHT);
 }
 
-/** GM path: nobody is nominated, so the election resolves without a sheriff and the GM opens the day. */
+/** GM path: nobody votes, so the election resolves without a sheriff and the GM opens the day. */
 async function skipSheriffElection(target: TestGame): Promise<void> {
     await target.waitForPhaseEverywhere(Phase.SHERIFF_ELECTION);
-    await nominateAll(target, () => false);
-    const resolved = await target.manager.waitFor(
-        (s) => s.phase === Phase.SHERIFF_ELECTION && s.sheriffElectionDone,
-        'sheriff election resolved without a candidate',
-    );
+    await voteAll(target, () => false, (s) => s.sheriffElectionDone, 'sheriff election resolved without a candidate');
+    const resolved = target.manager.state!;
     expect(resolved.players.some((p) => p.isSheriff), 'nobody wears a badge').toBe(false);
     target.manager.socket.emit('acceptSheriffRole', { gameId: target.gameId });
     await target.waitForPhaseEverywhere(Phase.DAY);
 }
 
-/** Two candidates, `winner` gets every vote, the election is resolved but not accepted yet. */
-async function runSheriffElection(target: TestGame, winner: Client, runnerUp: Client): Promise<void> {
-    await nominateAll(target, (client) =>
-        client === winner ? runnerUp : client === runnerUp ? winner : false,
-    );
+/** Every living player votes for `winner`; the election is resolved but not accepted yet. */
+async function runSheriffElection(target: TestGame, winner: Client): Promise<void> {
     await voteAll(target, () => winner, (s) => s.sheriffElectionDone, 'sheriff election resolved');
 }
 
@@ -409,7 +403,7 @@ describe('full game flow', () => {
         const sheriff = nonManagers[0]!;
         const runnerUp = nonManagers[1]!;
 
-        await runSheriffElection(game, sheriff, runnerUp);
+        await runSheriffElection(game, sheriff);
 
         // The badge is visible before anyone accepts, and only to the elected player.
         for (const client of game.clients) {
@@ -456,8 +450,7 @@ describe('full game flow', () => {
 
         const nonManagers = game.aliveClients().filter((c) => !c.state?.isManager);
         const sheriff = nonManagers[0]!;
-        const runnerUp = nonManagers[1]!;
-        await runSheriffElection(game, sheriff, runnerUp);
+        await runSheriffElection(game, sheriff);
         await game.manager.waitFor((s) => s.sheriffElectionDone, 'sheriff election resolved');
 
         // The elected sheriff stays silent forever; the GM is the documented way out.
@@ -827,7 +820,7 @@ describe('full game flow', () => {
         );
         expect(candidates.length).toBeGreaterThanOrEqual(2);
         const sheriff = candidates[0]!;
-        await runSheriffElection(game, sheriff, candidates[1]!);
+        await runSheriffElection(game, sheriff);
         sheriff.socket.emit('acceptSheriffRole', { gameId: game.gameId });
         await game.waitForPhaseEverywhere(Phase.DAY);
 
@@ -939,11 +932,8 @@ describe('full game flow', () => {
         expect(manager.state?.phase).toBe(Phase.SHERIFF_ELECTION);
 
         // All abstain: the election resolves with no sheriff at all (the branch only the GM can leave).
-        await nominateAll(game, () => false);
-        const resolved = await manager.waitFor(
-            (s) => s.phase === Phase.SHERIFF_ELECTION && s.sheriffElectionDone,
-            'election resolved without a sheriff',
-        );
+        await voteAll(game, () => false, (s) => s.sheriffElectionDone, 'election resolved without a sheriff');
+        const resolved = manager.state!;
         expect(resolved.players.some((p) => p.isSheriff), 'nobody was elected').toBe(false);
 
         // Negative space: a living player has no authority here, and the rejection changes nothing.

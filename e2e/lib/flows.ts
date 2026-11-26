@@ -102,6 +102,25 @@ export async function waitForNight(page: Page): Promise<void> {
         .toBe(true);
 }
 
+/**
+ * One ballot in the sheriff election. It is a direct vote: every living player is a
+ * candidate from the first snapshot and the last row is "Abstain from Vote", so there is
+ * no nomination stage to drive first. `targetName` null means an explicit abstain.
+ */
+export async function voteForSheriff(page: Page, targetName: string | null): Promise<void> {
+    const ballot = page.locator('#sheriff-vote-list li.selectable-player');
+    const candidate = targetName
+        ? ballot.filter({ hasText: targetName })
+        : ballot.filter({ hasText: 'Abstain from Vote' });
+    await expect(candidate, `no sheriff ballot entry for ${targetName ?? 'Abstain from Vote'}`).toHaveCount(1);
+    await candidate.click();
+    await expect(candidate).toHaveClass(/selected/);
+
+    const confirm = page.locator('#confirm-sheriff-vote-btn');
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+}
+
 export interface StartedGame {
     code: string;
     gm: Page;

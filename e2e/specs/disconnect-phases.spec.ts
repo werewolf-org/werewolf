@@ -11,6 +11,7 @@ import {
     readRoleCards,
     setName,
     startActualGame,
+    voteForSheriff,
     waitForNight,
     waitForPointerReady,
     waitUntilVisible,
@@ -637,38 +638,46 @@ test.describe('disconnect and reconnect by phase', () => {
             // Skipping the last waking role resolved the night: the returning phone has to
             // be past the night entirely, not stuck on its skipped turn.
             expect(snap.phase).toBe('SHERIFF_ELECTION');
-            await waitUntilVisible(actor.page, '#sheriff-nomination-view');
+            await waitUntilVisible(actor.page, '#sheriff-voting-view');
             expect(snap.activeNightRole).toBeNull();
         }
     });
 
-    test('SHERIFF_ELECTION: the nomination stage survives a blip', async ({ browser }) => {
+    test('SHERIFF_ELECTION: the direct ballot survives a blip', async ({ browser }) => {
         test.slow();
         const table = await startTable(browser);
         await advanceUntil(table, table.seats[1]!.page, (snap) => snap.phase === 'SHERIFF_ELECTION');
 
         const player = table.seats[1]!;
-        await waitUntilVisible(player.page, '#sheriff-nomination-view');
+        await waitUntilVisible(player.page, '#sheriff-voting-view');
         const roleBefore = (await requireSnapshot(player.page)).role;
 
         const offline = await goOffline(table, player);
-        await expect(table.gm.locator('#sheriff-nomination-list')).toBeVisible();
+        await expect(table.gm.locator('#sheriff-vote-list')).toBeVisible();
         await comeBack(table, player, offline);
 
-        await waitUntilVisible(player.page, '#sheriff-nomination-view');
-        expect(await isVisible(player.page, '#sheriff-voting-view')).toBe(false);
+        await waitUntilVisible(player.page, '#sheriff-voting-view');
         expect(await isVisible(player.page, '#sheriff-result-view')).toBe(false);
 
         const snap = await requireSnapshot(player.page);
         expect(snap.phase).toBe('SHERIFF_ELECTION');
         expect(snap.role).toBe(roleBefore);
         expect(snap.players).toHaveLength(4);
-        await expect(player.page.locator('#sheriff-nomination-list li')).toHaveCount(5); // four seats + the abstain row
-        await expect(player.page.locator('#sheriff-nomination-list')).toContainText(`${nameOf(1)} (You)`);
+        expect(snap.myVoteTargetUUID ?? null, 'the rejoin must not invent a ballot').toBeNull();
+        // Every living seat plus the abstain row; there is no nomination list any more.
+        await expect(player.page.locator('#sheriff-vote-list li.selectable-player')).toHaveCount(5);
+        await expect(player.page.locator('#sheriff-vote-list')).toContainText(`${nameOf(1)} (You)`);
+        await expect(player.page.locator('#sheriff-vote-list')).toContainText('Abstain from Vote');
+        for (const retired of ['#sheriff-nomination-view', '#sheriff-nomination-list', '#confirm-sheriff-nomination-btn']) {
+            await expect(player.page.locator(retired)).toHaveCount(0);
+        }
 
-        // Continuity: the returning phone still owns its ballot.
-        await expect(player.page.locator('#sheriff-nomination-controls')).toBeVisible();
-        await expect(player.page.locator('#sheriff-nomination-confirmed-message')).toBeHidden();
+        // Continuity: the returning phone still owns its ballot and can spend it.
+        await expect(player.page.locator('#sheriff-voting-controls')).toBeVisible();
+        await expect(player.page.locator('#sheriff-vote-confirmed-message')).toBeHidden();
+        await waitForPointerReady(player.page);
+        await voteForSheriff(player.page, null);
+        await expect(player.page.locator('#sheriff-vote-confirmed-message')).toBeVisible();
     });
 
     test('DAY nominations: the returning phone is in the current stage and can still nominate', async ({ browser }) => {

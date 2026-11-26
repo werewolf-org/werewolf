@@ -12,6 +12,7 @@ import {
     setName,
     startActualGame,
     startGameWithPlayers,
+    voteForSheriff,
     waitForNight,
     waitUntilHidden,
     waitUntilVisible,
@@ -123,7 +124,7 @@ test.describe('screens', () => {
         expect(pageErrors, 'the page must not throw or log console errors').toEqual([]);
     });
 
-    test('sheriff election: nomination, trial vote, only the elected sheriff may accept, GM can still move on', async ({ browser }) => {
+    test('sheriff election: a direct vote on every living player, only the elected sheriff may accept', async ({ browser }) => {
         test.slow();
 
         const game = await startGameWithPlayers(browser, 6);
@@ -131,52 +132,41 @@ test.describe('screens', () => {
         watch(phones);
         const gm = game.gm;
 
-        // Skip the whole first night: the election opens on the phones.
-        await advanceUntilVisibleOn(game, '#sheriff-nomination-view', 10);
-        for (const phone of phones) await expect(phone.page.locator('#sheriff-nomination-view')).toBeVisible();
-        await expect(gm.locator('#sheriff-nomination-list')).toContainText('Abstain from Nomination');
+        // Skip the whole first night: the election opens on the phones, already on the ballot.
+        await advanceUntilVisibleOn(game, '#sheriff-voting-view', 10);
+        for (const phone of phones) await expect(phone.page.locator('#sheriff-voting-view')).toBeVisible();
+
+        // The nomination stage is gone, not merely hidden: none of its controls exist any more.
+        for (const retired of [
+            '#sheriff-nomination-view',
+            '#sheriff-nomination-list',
+            '#sheriff-nomination-controls',
+            '#confirm-sheriff-nomination-btn',
+            '#sheriff-nomination-confirmed-message',
+        ]) {
+            for (const phone of phones) await expect(phone.page.locator(retired)).toHaveCount(0);
+        }
+
+        // Every living seat is a candidate from the first snapshot, plus the abstain row.
+        for (const phone of phones) {
+            await expect(phone.page.locator('#sheriff-vote-list li.selectable-player')).toHaveCount(phones.length + 1);
+            await expect(phone.page.locator('#sheriff-vote-list')).toContainText('Abstain from Vote');
+            for (let index = 0; index < phones.length; index++) {
+                await expect(phone.page.locator('#sheriff-vote-list')).toContainText(nameOf(index));
+            }
+        }
+        await expect(gm.locator('#sheriff-vote-progress')).toHaveText(`0/${phones.length} players have voted`);
 
         const targetIndex = game.roles.findIndex((role, index) => index !== 0 && (role === 'Villager' || role === 'Seer'));
         expect(targetIndex).toBeGreaterThan(0);
         const targetName = nameOf(targetIndex);
         const otherVoterIndex = targetIndex === 1 ? 2 : 1;
 
-        // Every living player has to cast a nomination before the trial starts. One real
-        // nomination, five explicit abstains.
-        for (let i = 0; i < phones.length; i++) {
-            const page = phones[i]!.page;
-            await expect(page.locator('#sheriff-nomination-view')).toBeVisible();
-            const list = page.locator('#sheriff-nomination-list');
-            if (i === otherVoterIndex) {
-                const candidate = list.locator('li.selectable-player').filter({ hasText: targetName });
-                await expect(candidate).toHaveCount(1);
-                await candidate.click();
-            } else {
-                await list.locator('li.selectable-player[data-uuid="false"]').click();
-            }
-            await page.locator('#confirm-sheriff-nomination-btn').click();
-            if (i < phones.length - 1) {
-                await expect(page.locator('#sheriff-nomination-confirmed-message')).toBeVisible();
-            }
-        }
-
-        for (const phone of phones) await expect(phone.page.locator('#sheriff-voting-view')).toBeVisible();
-        await expect(gm.locator('#sheriff-vote-list')).toContainText(targetName);
-
-        // The trial: two votes for the candidate, four abstains.
-        const voters = new Set([otherVoterIndex, (otherVoterIndex + 1) % phones.length]);
+        // Every living phone votes for the same seat; the last ballot resolves the election.
         for (let i = 0; i < phones.length; i++) {
             const page = phones[i]!.page;
             await expect(page.locator('#sheriff-voting-view')).toBeVisible();
-            const list = page.locator('#sheriff-vote-list');
-            if (voters.has(i)) {
-                const candidate = list.locator('li.selectable-player').filter({ hasText: targetName });
-                await expect(candidate).toHaveCount(1);
-                await candidate.click();
-            } else {
-                await list.locator('li.selectable-player[data-uuid="false"]').click();
-            }
-            await page.locator('#confirm-sheriff-vote-btn').click();
+            await voteForSheriff(page, targetName);
             if (i < phones.length - 1) {
                 await expect(page.locator('#sheriff-vote-confirmed-message')).toBeVisible();
             }
@@ -184,7 +174,7 @@ test.describe('screens', () => {
 
         for (const phone of phones) await expect(phone.page.locator('#sheriff-result-view')).toBeVisible();
         await expect(gm.locator('#elected-sheriff-name')).toHaveText(targetName);
-        await expect(gm.locator('#sheriff-vote-breakdown')).toContainText('2 Votes');
+        await expect(gm.locator('#sheriff-vote-breakdown')).toContainText(`${phones.length} Votes`);
 
         // Only the elected seat gets the badge; everyone else waits.
         const elected = phones[targetIndex]!.page;
@@ -195,11 +185,54 @@ test.describe('screens', () => {
         await expect(notElected.locator('#accept-sheriff-btn')).toBeHidden();
         await expect(notElected.locator('#sheriff-waiting-message')).toBeVisible();
 
-        // Declining (the elected sheriff never accepts) must not trap the table: the
-        // manager escape hatch stays reachable and carries the game into the day.
+        // The manager escape hatch stays reachable while the badge is pending...
         await waitUntilVisible(gm, '#manager-advance-view');
         await expect(gm.locator('#manager-advance-btn')).toBeEnabled();
-        await advance(game);
+
+        // ...and the elected phone really carries the table into the day.
+        await elected.locator('#accept-sheriff-btn').click();
+        for (const phone of phones) await expect(phone.page.locator('#day-nomination-view')).toBeVisible();
+    });
+
+    test('sheriff election: an abstain-only ballot elects nobody, and only the GM continues', async ({ browser }) => {
+        test.slow();
+
+        const game = await startGameWithPlayers(browser, 4);
+        phones = game.phones;
+        watch(phones);
+        const gm = game.gm;
+
+        await advanceUntilVisibleOn(game, '#sheriff-voting-view', 10);
+        for (const phone of phones) {
+            await expect(phone.page.locator('#sheriff-voting-view')).toBeVisible();
+            await expect(phone.page.locator('#confirm-sheriff-nomination-btn')).toHaveCount(0);
+        }
+
+        for (let i = 0; i < phones.length; i++) {
+            await voteForSheriff(phones[i]!.page, null);
+            if (i < phones.length - 1) {
+                await expect(phones[i]!.page.locator('#sheriff-vote-confirmed-message')).toBeVisible();
+            }
+        }
+
+        // An all-abstain ballot resolves to "No One": no badge, no acceptance screen.
+        for (const phone of phones) {
+            await expect(phone.page.locator('#sheriff-result-view')).toBeVisible();
+            await expect(phone.page.locator('#elected-sheriff-name')).toHaveText('No One');
+            await expect(phone.page.locator('#no-sheriff-text')).toBeVisible();
+            await expect(phone.page.locator('#sheriff-accept-controls')).toBeHidden();
+            await expect(phone.page.locator('#accept-sheriff-btn')).toBeHidden();
+        }
+
+        // Only the GM may move the table on; everybody else waits for that.
+        await expect(gm.locator('#gm-continue-controls')).toBeVisible();
+        await expect(gm.locator('#gm-continue-btn')).toBeVisible();
+        for (const phone of phones.slice(1)) {
+            await expect(phone.page.locator('#gm-continue-controls')).toBeHidden();
+            await expect(phone.page.locator('#no-sheriff-waiting-message')).toBeVisible();
+        }
+
+        await gm.locator('#gm-continue-btn').click();
         for (const phone of phones) await expect(phone.page.locator('#day-nomination-view')).toBeVisible();
     });
 

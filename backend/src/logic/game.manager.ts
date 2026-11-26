@@ -13,6 +13,72 @@ export class GameManager {
     private store = GameStore.getInstance();
     // socket.id -> gameId, so a disconnect can be traced back to the seat it belonged to
     private socketGames = new Map<string, string>();
+    // A seat can be held by more than one socket: a second tab, a reopened link, or a
+    // reconnect that happens before the server has noticed the old socket died. All of
+    // them are real phones showing real state, so all of them get snapshots and any of
+    // them may act. Binding only the newest socket used to freeze every other tab until
+    // the player manually refreshed the page.
+    private socketSeats = new Map<string, { gameId: string; playerUUID: string }>();
+    private seatSockets = new Map<string, Set<string>>();
+
+    private seatKey(gameId: string, playerUUID: string): string {
+        return `${gameId}:${playerUUID}`;
+    }
+
+    private bindSocketToSeat(gameId: string, playerUUID: string, socketId: string): void {
+        // A socket holds one seat at a time. Without dropping the previous binding, a
+        // socket that joins game B would stay in game A's fan-out set and keep receiving
+        // A's tailored snapshots - including private ones - while it plays B.
+        const previous = this.socketSeats.get(socketId);
+        if(previous && (previous.gameId !== gameId || previous.playerUUID !== playerUUID)) {
+            this.releaseSocketFromSeat(socketId);
+        }
+
+        const key = this.seatKey(gameId, playerUUID);
+        let sockets = this.seatSockets.get(key);
+        if(!sockets) {
+            sockets = new Set();
+            this.seatSockets.set(key, sockets);
+        }
+        sockets.add(socketId);
+        this.socketSeats.set(socketId, { gameId, playerUUID });
+    }
+
+    private unbindSocket(socketId: string): { gameId: string; playerUUID: string } | undefined {
+        const seat = this.socketSeats.get(socketId);
+        this.socketSeats.delete(socketId);
+        if(!seat) return undefined;
+
+        const key = this.seatKey(seat.gameId, seat.playerUUID);
+        const sockets = this.seatSockets.get(key);
+        sockets?.delete(socketId);
+        if(sockets && sockets.size === 0) this.seatSockets.delete(key);
+        return seat;
+    }
+
+    // Remove a socket from its seat and repair the player's primary socketId: promote another
+    // live socket of that seat, or clear it when this was the last one. Used both when a
+    // socket disconnects and when it moves to a different game.
+    private releaseSocketFromSeat(socketId: string): { seat: { gameId: string; playerUUID: string }; game: Game | undefined; player: Player | undefined } | undefined {
+        const seat = this.unbindSocket(socketId);
+        if(!seat) return undefined;
+
+        const game = this.store.getGame(seat.gameId);
+        const player = game?.players.find((p) => p.playerUUID === seat.playerUUID);
+        if(player) {
+            const remaining = this.socketsFor(seat.gameId, seat.playerUUID);
+            if(remaining.length > 0) {
+                if(player.socketId === socketId) player.socketId = remaining[remaining.length - 1]!;
+            } else {
+                player.socketId = null;
+            }
+        }
+        return { seat, game, player };
+    }
+
+    private socketsFor(gameId: string, playerUUID: string): string[] {
+        return [...(this.seatSockets.get(this.seatKey(gameId, playerUUID)) ?? [])];
+    }
 
     private getGameById(gameId: string): Game {
         const game = this.store.getGame(gameId);
@@ -21,6 +87,15 @@ export class GameManager {
     }
 
     private getPlayerBySocketId(game: Game, socketId: string): Player {
+        // The socket -> seat map is authoritative and can point at a seat whose "primary"
+        // socketId is a different (newer) socket.
+        const seat = this.socketSeats.get(socketId);
+        if(seat && seat.gameId === game.gameId) {
+            const bound = game.players.find((player) => player.playerUUID === seat.playerUUID);
+            if(bound) return bound;
+        }
+
+        // Fallback for games seeded directly (unit tests) or a seat bound before this map.
         const player = game.players.find((player) => player.socketId === socketId);
         if(!player) throw new Error(`Player with socketId ${socketId} not found in ${game.gameId}`);
         return player;
@@ -37,31 +112,54 @@ export class GameManager {
         // The store holds the Game by reference, so persisting first is about isolating
         // a throwing selector: one bad snapshot must not desync everyone after it.
         this.store.updateGame(game);
-        const playersWithSocket: Player[] = game.players.filter((player) => player.socketId);
-        playersWithSocket.forEach((player) => {
+        game.players.forEach((player) => {
+            const playerUUID = player.playerUUID;
+            if(!playerUUID) return;
+
+            const sockets = this.socketsFor(game.gameId, playerUUID);
+            // A seat seeded without going through joinGame still has a socket on the player.
+            if(player.socketId && !sockets.includes(player.socketId)) sockets.push(player.socketId);
+            if(sockets.length === 0) return;
+            // getLocalPlayerState treats a seat without a socket as a broken invariant.
+            if(!player.socketId) player.socketId = sockets[sockets.length - 1]!;
+
+            let snapshot: object;
             try {
-                socketService.syncState(player.socketId, getLocalPlayerState(game, player));
+                snapshot = getLocalPlayerState(game, player);
             } catch (error: any) {
-                console.error(`Failed to sync state to ${player.playerUUID} in ${game.gameId}: ${error.message}`);
+                console.error(`Failed to build state for ${playerUUID} in ${game.gameId}: ${error.message}`);
+                return;
             }
+
+            sockets.forEach((socketId) => {
+                try {
+                    socketService.syncState(socketId, snapshot);
+                } catch (error: any) {
+                    console.error(`Failed to sync state to ${socketId} (${playerUUID}) in ${game.gameId}: ${error.message}`);
+                }
+            });
         });
     }
 
     handleDisconnect(socketId: string): void {
         const gameId = this.socketGames.get(socketId);
         this.socketGames.delete(socketId);
-        if(!gameId) return;
+        // Unbind first: it names the player this socket belonged to and repairs the seat's
+        // primary socket (another live socket, or null when this was the last one).
+        const released = this.releaseSocketFromSeat(socketId);
 
-        const game = this.store.getGame(gameId);
+        const targetGameId = released?.seat.gameId ?? gameId;
+        if(!targetGameId) return;
+
+        const game = this.store.getGame(targetGameId);
         if(!game) return;
 
-        // Only clear the seat if it still points at this socket: a rejoin may already have rebound it
-        const player = game.players.find((p) => p.socketId === socketId);
-        if(!player) return;
+        // A connected socket that never joined (or only created the game) has no seat.
+        if(!released) return;
 
-        player.socketId = null;
         this.broadcastStateAndStore(game);
-        console.log(`Player ${player.playerUUID} disconnected from ${gameId}, seat kept for rejoin`);
+        const playerUUID = released.player?.playerUUID ?? released.seat.playerUUID;
+        console.log(`Player ${playerUUID} disconnected from ${targetGameId}, seat kept for rejoin`);
     }
 
     // TODO: outsource to other file
@@ -112,15 +210,19 @@ export class GameManager {
         // Emitting joinGame twice used to create a second seat on the same socket: two
         // players shared one socketId, one of them consumed a role and could never act,
         // and the client received alternating snapshots.
-        const seatOfThisSocket = game.players.find((p) => p.socketId === socketId);
-        if(seatOfThisSocket) {
-            playerUUID = seatOfThisSocket.playerUUID;
+        const boundSeat = this.socketSeats.get(socketId);
+        if(boundSeat && boundSeat.gameId === game.gameId) {
+            playerUUID = boundSeat.playerUUID;
+        } else {
+            const seatOfThisSocket = game.players.find((p) => p.socketId === socketId);
+            if(seatOfThisSocket) playerUUID = seatOfThisSocket.playerUUID;
         }
 
         const existingPlayer = playerUUID ? game.players.find((p) => p.playerUUID === playerUUID) : undefined;
 
         if(existingPlayer && playerUUID) {
-            // REJOIN (e.g. after refreshing the page) in any phase
+            // REJOIN (e.g. after refreshing the page) in any phase. The seat is bound to this
+            // socket in addition to any socket that still holds it, so neither phone goes dark.
             LobbyHander.connectPlayerToSocket(game, playerUUID, socketId);
         } else if(game.phase === Phase.LOBBY) {
             // JOIN game (in Lobby Phase)
@@ -135,6 +237,7 @@ export class GameManager {
             throw new Error(`Game ${gameId} is no longer accepting new players`);
         }
 
+        this.bindSocketToSeat(game.gameId, playerUUID, socketId);
         this.socketGames.set(socketId, game.gameId);
         socketService.joinRoom(socketId, game.gameId);
         this.broadcastStateAndStore(game);
@@ -201,8 +304,8 @@ export class GameManager {
         const game = this.getGameById(gameId);
         const player = this.getPlayerBySocketId(game, socketId);
         if(!player.isAlive) return;
-        if(game.phase === Phase.DAY || game.phase === Phase.SHERIFF_ELECTION) VoteHandler.nominate(game, player, nominationUUID);
-        else throw new Error(`Game with ID ${gameId} is not in Phase DAY or SHERIFF_ELECTION, so nomination cannot happen right now`);
+        if(game.phase === Phase.DAY) VoteHandler.nominate(game, player, nominationUUID);
+        else throw new Error(`Game with ID ${gameId} is not in Phase DAY, so nomination cannot happen right now`);
         this.checkGameOver(game);
         this.broadcastStateAndStore(game);
     }

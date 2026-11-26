@@ -9,34 +9,46 @@ describe("vote.handler", () => {
   describe("nominate", () => {
     it("records a nomination successfully", () => {
       const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
       VoteHandler.nominate(game, game.players[0], "p1");
       expect(game.players[0].nominationUUID).toBe("p1");
     });
 
     it("records false nomination (abstain)", () => {
       const game = createGameWithPlayers(2);
+      game.phase = Phase.DAY;
       VoteHandler.nominate(game, game.players[0], false);
       expect(game.players[0].nominationUUID).toBe(false);
     });
 
     it("throws when player has already nominated", () => {
       const game = createGameWithPlayers(2);
+      game.phase = Phase.DAY;
       VoteHandler.nominate(game, game.players[0], "p1");
       expect(() => VoteHandler.nominate(game, game.players[0], "p0")).toThrow("already has a nomination");
     });
 
     it("throws when nominating player who was already nominated by someone else", () => {
       const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
       VoteHandler.nominate(game, game.players[0], "p2");
       expect(() => VoteHandler.nominate(game, game.players[1], "p2")).toThrow("already nominated");
     });
 
     it("allows different players to nominate different targets", () => {
       const game = createGameWithPlayers(3);
+      game.phase = Phase.DAY;
       VoteHandler.nominate(game, game.players[0], "p1");
       VoteHandler.nominate(game, game.players[1], "p2");
       expect(game.players[0].nominationUUID).toBe("p1");
       expect(game.players[1].nominationUUID).toBe("p2");
+    });
+
+    it("throws outside DAY, so the sheriff election has no nomination stage", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.SHERIFF_ELECTION;
+      expect(() => VoteHandler.nominate(game, game.players[0], "p1")).toThrow("not in Phase DAY");
+      expect(game.players[0].nominationUUID).toBeNull();
     });
 
     it("sets lynchDone(null) when all alive players nominated but nobody was nominated", () => {
@@ -215,22 +227,19 @@ describe("vote.handler", () => {
   });
 
   describe("castSheriffVote", () => {
-    it("records a vote for a nominated player", () => {
+    it("records a direct vote for any living player, with no nomination stage", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      game.players[1].nominationUUID = false;
-      game.players[2].nominationUUID = "p1";
       VoteHandler.castSheriffVote(game, game.players[0], "p1");
       expect(game.players[0].voteTargetUUID).toBe("p1");
       expect(game.sheriffElectionDone).toBe(false);
+      // Nobody nominated anybody: the direct election does not need it.
+      expect(isNominationsFinished(game)).toBe(false);
     });
 
     it("records abstain vote (false)", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      game.players[1].nominationUUID = "p0";
       VoteHandler.castSheriffVote(game, game.players[0], false);
       expect(game.players[0].voteTargetUUID).toBe(false);
     });
@@ -238,9 +247,6 @@ describe("vote.handler", () => {
     it("resolves election when last player votes", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      game.players[1].nominationUUID = false;
-      game.players[2].nominationUUID = "p1";
       VoteHandler.castSheriffVote(game, game.players[0], "p1");
       VoteHandler.castSheriffVote(game, game.players[1], "p1");
       VoteHandler.castSheriffVote(game, game.players[2], "p1");
@@ -251,10 +257,6 @@ describe("vote.handler", () => {
     it("resolves sheriff election with abstain-only votes to no sheriff", () => {
       const game = createGameWithPlayers(4);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = false;
-      game.players[1].nominationUUID = false;
-      game.players[2].nominationUUID = false;
-      game.players[3].nominationUUID = false;
       VoteHandler.castSheriffVote(game, game.players[0], false);
       VoteHandler.castSheriffVote(game, game.players[1], false);
       VoteHandler.castSheriffVote(game, game.players[2], false);
@@ -264,36 +266,51 @@ describe("vote.handler", () => {
       expect(game.sheriffUUID).toBeNull();
     });
 
+    it("elects nobody when the direct vote is tied", () => {
+      const game = createGameWithPlayers(4);
+      game.phase = Phase.SHERIFF_ELECTION;
+      // 2-2: there is no incumbent sheriff to break the tie.
+      VoteHandler.castSheriffVote(game, game.players[0], "p1");
+      VoteHandler.castSheriffVote(game, game.players[1], "p0");
+      VoteHandler.castSheriffVote(game, game.players[2], "p1");
+      VoteHandler.castSheriffVote(game, game.players[3], "p0"); // triggers
+
+      expect(game.sheriffElectionDone).toBe(true);
+      expect(game.sheriffUUID).toBeNull();
+    });
+
     it("throws when player already voted", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      game.players[1].nominationUUID = false;
       VoteHandler.castSheriffVote(game, game.players[0], "p1");
       expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("already voted");
     });
 
-    it("throws when nominations not finished", () => {
+    it("accepts a living player who was never nominated", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      // players[1] nominationUUID is null
-      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("has not finished with nominations");
+      VoteHandler.castSheriffVote(game, game.players[0], "p1");
+      expect(game.players[0].voteTargetUUID).toBe("p1");
     });
 
-    it("throws when target is not nominated", () => {
+    it("rejects a dead player as the target", () => {
+      const game = createGameWithPlayers(3);
+      game.phase = Phase.SHERIFF_ELECTION;
+      game.players[2].isAlive = false;
+      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p2")).toThrow("not an alive player");
+      expect(game.players[0].voteTargetUUID).toBeNull();
+    });
+
+    it("rejects an unknown player as the target", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p0";
-      game.players[1].nominationUUID = false;
-      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("not nominated");
+      expect(() => VoteHandler.castSheriffVote(game, game.players[0], "does-not-exist")).toThrow("not an alive player");
+      expect(game.players[0].voteTargetUUID).toBeNull();
     });
 
     it("throws when election already done", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      game.players[1].nominationUUID = false;
       game.sheriffElectionDone = true;
       expect(() => VoteHandler.castSheriffVote(game, game.players[0], "p1")).toThrow("already done");
     });
@@ -301,8 +318,6 @@ describe("vote.handler", () => {
     it("normalises an undefined payload to abstain (B14)", () => {
       const game = createGameWithPlayers(2);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      game.players[1].nominationUUID = false;
       VoteHandler.castSheriffVote(game, game.players[0], undefined as any);
       expect(game.players[0].voteTargetUUID).toBe(false);
       expect(game.sheriffElectionDone).toBe(false);
@@ -311,9 +326,6 @@ describe("vote.handler", () => {
     it("a disconnected player still blocks the election until the GM force-advances", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      game.players[1].nominationUUID = false;
-      game.players[2].nominationUUID = false;
       game.players[2].socketId = null; // disconnected, has not voted yet
       VoteHandler.castSheriffVote(game, game.players[0], "p1");
       VoteHandler.castSheriffVote(game, game.players[1], "p1");
@@ -633,7 +645,8 @@ describe("vote.handler", () => {
 
       VoteHandler.forceAdvance(game);
 
-      expect(isNominationsFinished(game)).toBe(true);
+      // Direct election: there is no nomination stage to finish.
+      expect(isNominationsFinished(game)).toBe(false);
       expect(game.sheriffElectionDone).toBe(true);
       expect(game.sheriffUUID).toBeNull();
       // one step only: still waiting for the GM to accept/continue
@@ -643,9 +656,6 @@ describe("vote.handler", () => {
     it("resolves an unresolved sheriff election with a candidate", () => {
       const game = createGameWithPlayers(3);
       game.phase = Phase.SHERIFF_ELECTION;
-      game.players[0].nominationUUID = "p1";
-      game.players[1].nominationUUID = false;
-      game.players[2].nominationUUID = false;
       VoteHandler.castSheriffVote(game, game.players[0], "p1");
 
       VoteHandler.forceAdvance(game);

@@ -100,14 +100,7 @@ describe("elaborate game scenarios", () => {
       expect(game.phase).toBe(Phase.SHERIFF_ELECTION);
       expect(game.players[4].isAlive).toBe(true); // healed
 
-      /* ---- SHERIFF VOTE ---- */
-      // First nominate, then vote (only one nomination per target allowed)
-      VoteHandler.nominate(game, game.players[0], "p4");
-      VoteHandler.nominate(game, game.players[1], false);
-      VoteHandler.nominate(game, game.players[2], "p5");
-      VoteHandler.nominate(game, game.players[3], false);
-      VoteHandler.nominate(game, game.players[4], false);
-      VoteHandler.nominate(game, game.players[5], false);
+      /* ---- SHERIFF VOTE (direct, no nomination stage) ---- */
       VoteHandler.castSheriffVote(game, game.players[0], "p4");
       VoteHandler.castSheriffVote(game, game.players[1], "p4");
       VoteHandler.castSheriffVote(game, game.players[2], "p5");
@@ -377,10 +370,7 @@ describe("elaborate game scenarios", () => {
       NightHandler.nextRole(game);
       expect(game.phase).toBe(Phase.SHERIFF_ELECTION); // round 0
 
-      // Sheriff election — first nominate, then vote
-      VoteHandler.nominate(game, game.players[1], "p2");
-      VoteHandler.nominate(game, game.players[2], false);
-      VoteHandler.nominate(game, game.players[3], false);
+      // Sheriff election — direct vote, no nomination stage
       VoteHandler.castSheriffVote(game, game.players[1], "p2");
       VoteHandler.castSheriffVote(game, game.players[2], "p2");
       VoteHandler.castSheriffVote(game, game.players[3], "p2"); // triggers
@@ -415,7 +405,7 @@ describe("elaborate game scenarios", () => {
       expect(game.phase).toBe(Phase.DAY);
 
       // Sheriff election: all abstain — no votes present, no sheriff elected
-      game.players.forEach(p => { p.nominationUUID = false; });
+      game.phase = Phase.SHERIFF_ELECTION;
       VoteHandler.castSheriffVote(game, game.players[0], false);
       VoteHandler.castSheriffVote(game, game.players[1], false);
       VoteHandler.castSheriffVote(game, game.players[2], false);
@@ -539,13 +529,10 @@ describe("elaborate game scenarios", () => {
       game.sheriffElectionDone = false;
       game.players.forEach(p => { p.voteTargetUUID = null; p.nominationUUID = null; p.readyForNight = false; });
 
-      // p0 was killed during the night and can no longer nominate or vote
+      // Direct vote: every living player is a candidate, no nomination round.
+      // p0 was killed during the night and can no longer vote.
       expect(game.players[0].isAlive).toBe(false);
       const aliveElection = game.players.filter(p => p.isAlive);
-      VoteHandler.nominate(game, game.players[1], "p2");
-      VoteHandler.nominate(game, game.players[2], false);
-      VoteHandler.nominate(game, game.players[3], "p4");
-      VoteHandler.nominate(game, game.players[4], false);
       VoteHandler.castSheriffVote(game, game.players[1], "p2");
       VoteHandler.castSheriffVote(game, game.players[2], "p2");
       VoteHandler.castSheriffVote(game, game.players[3], "p4");

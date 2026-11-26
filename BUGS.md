@@ -100,6 +100,35 @@ physical action performed by the narrator around the table ("Little Girl, open y
 something the app mediates, so there is nothing for the app to schedule or render. The card describes a real
 power; the narrator runs it. Recorded here so a future session does not "implement" a UI for it.
 
+**R9 [BLOCKER, fixed] A seat was bound to one socket, so any other live screen went dark.** Reported from a
+real game: phones kept showing old state and players refreshed constantly. The render.com log shows a storm
+of `User connected` / `Player <uuid> joined game` / `User disconnected`, plus repeated `wants to nominate ...
+but this player was already nominated` - a phone tapping against a snapshot it never received.
+
+`connectPlayerToSocket` overwrote `player.socketId` on every `joinGame`, and `broadcastStateAndStore` sent
+the tailored snapshot to that one id. A seat therefore belonged to whichever socket joined *last*. A second
+tab, a reopened link, or a reconnect that reached the server before the old socket's timeout left the other
+socket connected, receiving nothing, and unable to act (`getPlayerBySocketId` failed too). The only way out
+was a refresh. Reproduced as a failing e2e test: an older socket that stays connected never sees the next
+phase change, ever.
+
+Fixed by tracking a set of sockets per seat (`socketSeats` / `seatSockets` in `GameManager`): every `joinGame`
+adds a binding, every snapshot fans out to all of them, any bound socket may act, and `handleDisconnect` only
+clears the seat when the last socket is gone (promoting another live socket to primary otherwise). A socket
+that moves to another game is unbound from the old seat first, so it cannot keep receiving that game's
+private snapshots - the fallback to `player.socketId` would otherwise have re-added it.
+
+Three client-side causes were fixed with it:
+- `GamePage.mount()` called `resetState()` (which nulls `gameId`) and then only restored `playerUUID`. A
+  reconnect in the window before the first snapshot read `gameId === null` and skipped its re-announce,
+  leaving the phone with no snapshot path until a manual reload. The route's `gameId` is kept now.
+- The socket service now re-emits `joinGame` on `visibilitychange`/`pageshow`/`online`, so a phone that
+  wakes from a lock catches up instead of trusting a socket the server may already have dropped.
+- `alert()` on every rejected action is gone. It blocks the JS thread; a blocking dialog cannot answer
+  socket.io's ping, so one "already nominated" could drop the connection and start a reconnect storm. The
+  game page shows a non-blocking toast (`#game-toast`) instead, and the day nomination confirm re-checks the
+  latest snapshot before emitting, like the sheriff screen already did.
+
 **Observations, deliberately not changed:**
 - The red lady's `#red-lady-waiting-message` never renders: `handleSleepover` advances the turn immediately,
   so she goes straight to the sleep view and learns the outcome at dawn.
