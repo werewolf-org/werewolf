@@ -9,6 +9,12 @@ const gameManager = new GameManager();
 const handleErrors = <T extends any[]>(handler: (...args: T) => void | Promise<void>, socket: Socket) => {
     return async (...args: T) => {
         try {
+            // Payloads come from the network untyped and every handler destructures them. A
+            // `null` payload used to surface as "Cannot destructure property 'gameId' of ...".
+            const payload = args[0];
+            if(payload !== undefined && (payload === null || typeof payload !== 'object')) {
+                throw new Error(`Malformed event payload: expected an object, got ${payload === null ? 'null' : typeof payload}`);
+            }
             await handler(...args);
         } catch (error: any) {
             socketService.notifyError(socket.id, error.message);

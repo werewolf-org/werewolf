@@ -5,8 +5,14 @@ import { getNextToWakeUp } from "../selectors/night.selectors.js";
 
 // Socket payloads are untyped and socket.io drops keys with an `undefined` value.
 // Normalise every payload to the two states the game understands: a target UUID or an explicit abstain (false).
-const normalizeTarget = (targetUUID: string | false | null | undefined): string | false =>
-    typeof targetUUID === "string" ? targetUUID : false;
+const normalizeTarget = (targetUUID: unknown): string | false => {
+    // A missing field or explicit null/false means "abstain". Anything else that is not a
+    // string is a malformed payload: silently treating an object or a number as an abstain
+    // would consume the player's only vote without them ever choosing anything.
+    if(targetUUID === undefined || targetUUID === null || targetUUID === false) return false;
+    if(typeof targetUUID === "string") return targetUUID;
+    throw new Error(`Invalid vote target: expected a player id or false, got ${typeof targetUUID}`);
+};
 
 const isAlreadyCast = (value: string | false | null | undefined): boolean =>
     value !== null && value !== undefined;

@@ -9,6 +9,7 @@ import { GameStore } from "../../store/game.store.js";
 // 4 = one werewolf + three villagers is the smallest setup where the village has a
 // realistic chance to vote out the wolf before the night kills decide the game.
 export const MIN_PLAYERS = 4;
+export const MAX_NAME_LENGTH = 40;
 const GAME_ID_LENGTH = 4;
 const GAME_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const MAX_GAME_ID_ATTEMPTS = 1000;
@@ -94,8 +95,12 @@ export const LobbyHander = {
     },
     changeName(game: Game, player: Player, newName: string): void {
         if(game.phase !== Phase.LOBBY) throw new Error(`Game with ID ${game.gameId} not in Phase LOBBY, so name change not possible!`);
-        player.displayName = newName;
-        console.log(`Player ${player.playerUUID} changed name to ${newName}`)
+        // Untyped socket payload: without this a missing or numeric name lands in the snapshot
+        // as `undefined` or `42`. An empty name is allowed on purpose (closeJoining renames
+        // unnamed players), anything that is not a string is not.
+        if(typeof newName !== 'string') throw new Error(`Name must be a string, got ${typeof newName}`);
+        player.displayName = newName.trim().slice(0, MAX_NAME_LENGTH);
+        console.log(`Player ${player.playerUUID} changed name to ${player.displayName}`)
     },
     closeJoining(game: Game): void {
         if(game.phase !== Phase.LOBBY) throw new Error(`Game ${game.gameId} is already in progress, so joining cannot be closed.`);

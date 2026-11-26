@@ -188,9 +188,12 @@ audio pacing or real device behaviour.
 | `e2e/game-flow.test.ts` | 11 | Complete nights (heal, poison, red lady), sheriff election, full day, all three win conditions, sheriff death badge clear, dead-GM election exit |
 | `e2e/reconnect.test.ts` | 5 | Reload mid-day, network blip with new socket id, lobby refresh, post-lobby rejoin, disconnect mid-night |
 | `e2e/security.test.ts` | 9 | Manager-only actions, stranger socket, out-of-turn, dead players, target validation, snapshot leaks, escape hatch, intentional death reveal |
+| `e2e/voting.test.ts` | 28 | Every tie shape (incl. three-way and the sheriff as a tied candidate), abstains, nomination collisions, vote integrity, lynch chains, election ordering, `forceAdvance` from each day stage |
+| `e2e/roles-and-night.test.ts` | 27 | Composition extremes (1–3 wolves, no cupid/witch, all five wakers), night-order integrity, cupid/witch/seer/red-lady edges, three rounds of persistence |
+| `e2e/protocol.test.ts` | 23 | Malformed payloads per event, unknown events, replay, concurrent emits, multi-game isolation, socket churn, name/ID validation |
 | `e2e/fuzz.test.ts` | 2 | Seeded random full games: 3 per run by default, invariant checking after every sync, hard-branch coverage report |
 
-Browser suite (`e2e/specs/`, Playwright, ~1.8 min):
+Browser suite (`e2e/specs/`, Playwright, ~4.5 min, 67 tests):
 
 | File | Tests | Coverage |
 |---|---|---|
@@ -200,6 +203,10 @@ Browser suite (`e2e/specs/`, Playwright, ~1.8 min):
 | `disconnect-phases.spec.ts` | 18 | Disconnection matrix: 10 phases × network blip, reload, reopened tab, GM offline; connection banner and role chip |
 | `robustness.spec.ts` | 5 | Failed join, gate overlay, double-tap create, stray-tap guard, GM-only control |
 | `escaping.spec.ts` | 2 | HTML payload in a player name inert in lobby, day and death popup |
+| `roles-ui.spec.ts` | 10 | Witch heal/poison/both, seer, cupid bond on both lovers, werewolf pack, villager, dead role never wakes |
+| `screens.spec.ts` | 5 | Sheriff election, day result, game over, 10-player lobby, 40-char name |
+| `audio.spec.ts` | 5 | Narration and atmosphere are Game-Manager-only (measured per phone), no repeats per snapshot, silence before a game |
+| `navigation.spec.ts` | 11 | Deep links, Back/Forward, hash case, two games in one context, reload on distribution and game over, overflow, tap-target size |
 
 
 ### Test Helpers

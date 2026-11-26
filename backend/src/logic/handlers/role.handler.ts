@@ -14,6 +14,9 @@ export const WerewolfHandler = {
     handleVote(game: Game, player: Player, targetUUID: string): boolean {
         const target = getNightTarget(game, targetUUID, "vote for this player");
         if(target === player) throw new Error(`Werewolf ${player.playerUUID} cannot vote for themselves`);
+        // The pack hunts villagers, not each other. Without this, three wolves could put a
+        // 2:1 majority on one of their own and the pack would kill a werewolf at dawn.
+        if(target.role === Role.WEREWOLF) throw new Error(`Werewolf ${player.playerUUID} cannot vote for another werewolf (${targetUUID})`);
 
         // send vote to all werewolves
         const aliveWerewolves = game.players.filter((player) => player.isAlive === true && player.role === Role.WEREWOLF)
@@ -83,6 +86,9 @@ export const CupidHandler = {
 
 export const WitchHandler = {
     handlePotion(game: Game, player: Player, heal: boolean | null, killUUID: string | null): boolean {
+        // Untyped socket payload: "yes" is truthy and used to burn the one-shot healing potion.
+        if(heal !== undefined && heal !== null && typeof heal !== 'boolean') throw new Error(`Witch heal flag must be a boolean, got ${typeof heal}`);
+        if(killUUID !== undefined && killUUID !== null && typeof killUUID !== 'string') throw new Error(`Witch kill target must be a player id, got ${typeof killUUID}`);
         if(!heal && !killUUID) throw new Error(`Witch with ID ${player.playerUUID} didn't use a Potion`)
 
         const werewolfTargetUUID = getWerewolfVictimUUID(game);

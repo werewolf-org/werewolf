@@ -20,20 +20,27 @@ const resolveNightActions = (game: Game): void => {
     let dyingPlayerUUIDs: string[] = [];
 
     // werewolf kill
-    if(werewolfTargetUUID && !witchHeal) dyingPlayerUUIDs.push(werewolfTargetUUID);
+    const werewolfVictimUUID = werewolfTargetUUID && !witchHeal ? werewolfTargetUUID : null;
+    if(werewolfVictimUUID) dyingPlayerUUIDs.push(werewolfVictimUUID);
 
     // witch kill (healing and killing the same player must not kill them)
     const isHealedVictim = witchHeal && witchKillUUID !== null && witchKillUUID === werewolfTargetUUID;
-    if(witchKillUUID && !isHealedVictim && !dyingPlayerUUIDs.includes(witchKillUUID)) dyingPlayerUUIDs.push(witchKillUUID);
+    const witchKillTargetUUID = witchKillUUID && !isHealedVictim ? witchKillUUID : null;
+    if(witchKillTargetUUID && !dyingPlayerUUIDs.includes(witchKillTargetUUID)) dyingPlayerUUIDs.push(witchKillTargetUUID);
 
     // red lady logic
     const redLadyUUID = game.players.filter((player) => player.isAlive).find((player) => player.role === Role.RED_LADY)?.playerUUID ?? null;
     if(redLadyUUID) {
-        const victimsWithoutRedLady = dyingPlayerUUIDs.filter((victim) => victim !== redLadyUUID);
-        if(redLadySleepoverUUID && victimsWithoutRedLady.includes(redLadySleepoverUUID) && !victimsWithoutRedLady.includes(redLadyUUID)) {
-            victimsWithoutRedLady.push(redLadyUUID);
+        // She escapes an attack aimed at her, and dies when her host was killed. She does NOT
+        // escape the witch's poison - only the werewolves' attack - so a poisoned red lady dies
+        // and the one-shot potion is not silently wasted.
+        if(witchKillTargetUUID !== redLadyUUID) {
+            const victimsWithoutRedLady = dyingPlayerUUIDs.filter((victim) => victim !== redLadyUUID);
+            if(redLadySleepoverUUID && victimsWithoutRedLady.includes(redLadySleepoverUUID) && !victimsWithoutRedLady.includes(redLadyUUID)) {
+                victimsWithoutRedLady.push(redLadyUUID);
+            }
+            dyingPlayerUUIDs = victimsWithoutRedLady;
         }
-        dyingPlayerUUIDs = victimsWithoutRedLady;
     }
 
     // TODO: edge case - what if the red lady sleeps at the love partner's place

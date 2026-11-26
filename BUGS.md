@@ -67,7 +67,41 @@ The first attempt also guarded every phase swap and was reverted: it swallowed l
 (it broke 10 of 18 browser tests, and a human tapping a wolf target the instant the screen changes has
 done nothing wrong). Route changes are the case that was actually observed.
 
-## Product gaps the browser suite found
+## Found by the expanded e2e batch
+
+**R3 [CORRUPT, fixed] A three-wolf pack could eliminate one of its own.** `WerewolfHandler.handleVote`
+rejected self-votes but not packmate votes. With three wolves, two votes on a third plus the target's own
+vote for a villager gave a 2:1 majority and the pack killed a werewolf at dawn. Unreachable with two
+wolves, which is why it survived. A vote for another werewolf is now rejected.
+
+**R4 [CORRUPT, fixed] The witch's poison could not kill the red lady.** Dawn resolution stripped her from
+the dying list for *any* cause, so the one-shot killing potion was consumed and nobody died. She now only
+escapes the werewolves' attack (and still dies when her host is killed), not the poison.
+
+**R5 [CORRUPT, fixed] `joinGame` twice on one socket created a ghost seat.** Two players shared a
+`socketId`, so `getPlayerBySocketId` always matched the first: the ghost consumed a role it could never
+use, and the client received alternating snapshots from two different players. A socket that already holds
+a seat is now treated as rejoining. A missing `playerUUID` took the same path.
+
+**R6 [CORRUPT, fixed] Untyped payloads.** `usePotion {"heal":"yes"}` was truthy and burned the one-shot
+healing potion; a number or object as a vote/nomination target was silently stored as an abstain, consuming
+the action; `changeName` stored numbers and 200-character strings. Payloads are now typed and rejected at
+the boundary (names trimmed and capped at 40), while a missing/null/false target still means an explicit
+abstain.
+
+**R7 [MINOR, fixed] The cupid never learned the bond was sealed.** The second lover's confirmation advanced
+`activeNightRole` in the same snapshot, so the cupid's status list was unmounted before "both ready" could
+render. The sleep view now carries a cupid-only confirmation line.
+
+**Observations, deliberately not changed:**
+- The red lady's `#red-lady-waiting-message` never renders: `handleSleepover` advances the turn immediately,
+  so she goes straight to the sleep view and learns the outcome at dawn.
+- `#gm-continue-controls` stays hidden when a sheriff was elected but never accepted, so that case is
+  escaped with the GM's Force advance rather than a contextual button. Backend-side the GM is allowed
+  (B21); the UI simply offers the hatch instead.
+- `AudioService.playSFX` has **zero call sites**, so `/sounds/sfx/` can never play. Left in place for the
+  planned soundboard (issue #20).
+
 
 - **No disconnect indicator on the game route.** *Fixed.* `#connection-banner` ("Connection lost.
   Reconnecting…") appears whenever a game is on screen and `isConnected` is false. The socket.io server

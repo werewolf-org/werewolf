@@ -107,6 +107,16 @@ export class GameManager {
 
     joinGame(socketId: string, gameId: string, playerUUID: string | null): void {
         const game = this.getGameById(gameId);
+
+        // A socket that already holds a seat in this game is rejoining, not joining twice.
+        // Emitting joinGame twice used to create a second seat on the same socket: two
+        // players shared one socketId, one of them consumed a role and could never act,
+        // and the client received alternating snapshots.
+        const seatOfThisSocket = game.players.find((p) => p.socketId === socketId);
+        if(seatOfThisSocket) {
+            playerUUID = seatOfThisSocket.playerUUID;
+        }
+
         const existingPlayer = playerUUID ? game.players.find((p) => p.playerUUID === playerUUID) : undefined;
 
         if(existingPlayer && playerUUID) {

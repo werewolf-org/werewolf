@@ -119,6 +119,15 @@ export class NightPhase extends View {
             this.renderActionUI(activeRole as Role);
         } else {
             if (sleepView) sleepView.style.display = 'block';
+            // The cupid's status view is unmounted the moment the night moves on, so repeat the
+            // confirmation in the sleep view. Without this the cupid never learns that the second
+            // lover accepted - the night simply ends for them.
+            const cupidSealed = document.getElementById('night-cupid-sealed');
+            if (cupidSealed) {
+                const isCupid = state.role === Role.CUPID && state.cupidSelectedLovers
+                    && state.cupidFirstLoverConfirmed && state.cupidSecondLoverConfirmed;
+                cupidSealed.style.display = isCupid ? 'block' : 'none';
+            }
             // The previous role's sub-view is hidden but would keep its store
             // subscriptions alive; drop it so the next turn starts from a clean slate.
             this.clearSubView();
