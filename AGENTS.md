@@ -15,6 +15,14 @@ The `shared/` folder contains code that is used by both the frontend and the bac
 - **`roles.ts`**: Contains the `Role` enum, `RoleDef` interface, and the `ROLES` constant which defines the metadata (names, descriptions, teams, night order) for every role in the game.
 - **`phases.ts`**: Contains the enum `Phase`.
 
+# Prototypes (`prototype/`)
+
+Throwaway probes that answer one question (a UI walkthrough, a state-machine demo) live in
+`prototype/` at the repo root, never in `frontend/src`. The folder is **git-ignored**: prototypes are
+local, unshared, not imported, not built and not shipped. One self-contained file per question, named
+after the question, with the question and the verdict at the top; delete the file once the decision is
+folded into the real code. Never commit a prototype.
+
 # Reactive State Architecture
 
 The project follows a **Reactive State Machine** pattern. In this model, the Frontend UI is a "pure function" of the State. 
