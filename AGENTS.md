@@ -243,6 +243,7 @@ The game follows a strict phase sequence:
 - **Rejoin is keyed on `playerUUID`, not a secret.** `playerUUID` is part of every player's snapshot, so in principle one player can take over another's seat by emitting `joinGame` with their UUID. Accepted for a party game played by friends in one room; do not build a token scheme without asking. The frontend escaping of display names is what keeps this from being remotely reachable.
 - **No werewolf/villager parity win condition.** The game only ends when all wolves are dead, only wolves are alive, or only the loving couple is alive. A village that is outnumbered keeps playing.
 - **The game manager is the only escape hatch.** When a phase is stuck (a player went AFK), the GM advances it explicitly; there is no timeout and a disconnected player is not removed from the game, only from the socket mapping.
+- **Some roles are narrator-mediated, not app-driven.** The Little Girl has `wakesUp: false` and no handler because her peek happens physically around the table, narrated by the game master. Do not add a night UI for her without asking; the same will apply to any future role whose ability is someone's word rather than a screen.
 
 
 # Frontend Architecture

@@ -93,6 +93,13 @@ abstain.
 `activeNightRole` in the same snapshot, so the cupid's status list was unmounted before "both ready" could
 render. The sleep view now carries a cupid-only confirmation line.
 
+**R8 [NOT A BUG] The Little Girl does not wake, and should not.**
+I initially recorded this as a defect: the role is selectable, ships in 10 presets, and its card promises a
+peek, yet it has `wakesUp: false`, no handler and is never scheduled. That is deliberate. The peek is a
+physical action performed by the narrator around the table ("Little Girl, open your eyes briefly"), not
+something the app mediates, so there is nothing for the app to schedule or render. The card describes a real
+power; the narrator runs it. Recorded here so a future session does not "implement" a UI for it.
+
 **Observations, deliberately not changed:**
 - The red lady's `#red-lady-waiting-message` never renders: `handleSleepover` advances the turn immediately,
   so she goes straight to the sleep view and learns the outcome at dawn.
@@ -101,6 +108,11 @@ render. The sleep view now carries a cupid-only confirmation line.
   (B21); the UI simply offers the hatch instead.
 - `AudioService.playSFX` has **zero call sites**, so `/sounds/sfx/` can never play. Left in place for the
   planned soundboard (issue #20).
+- Two raw JS error messages still reach the client for degenerate payloads: a zero-argument emit
+  (`socket.emit('changeName')`) and `roleDistribution {roles: null}`. Both are caught, mutate nothing and
+  are cosmetic; fixing them means threading the event name through the central route guard, because
+  `createGame` legitimately sends no payload.
+- `MIN_PLAYERS = 4` makes the 2- and 3-player entries in `role-presets.json` unreachable data.
 
 
 - **No disconnect indicator on the game route.** *Fixed.* `#connection-banner` ("Connection lost.
