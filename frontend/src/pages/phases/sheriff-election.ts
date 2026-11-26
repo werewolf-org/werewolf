@@ -4,6 +4,7 @@ import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
 import { audioService } from '../../audio.service';
 import { escapeHtml } from '../../html';
+import { waitingNamesText } from '../../vote-status';
 import { Phase } from '@shared/phases';
 
 // The sheriff is elected by a direct vote: every living player is a candidate from the
@@ -109,21 +110,28 @@ export class SheriffElectionPhase extends View {
         const waitingMsg = document.getElementById('sheriff-vote-confirmed-message');
         const listEl = document.getElementById('sheriff-vote-list');
         const progressEl = document.getElementById('sheriff-vote-progress');
+        const waitingEl = document.getElementById('sheriff-vote-waiting');
 
         if (progressEl && state.voteProgress) {
-            progressEl.innerText = `${state.voteProgress.voted}/${state.voteProgress.total} players have voted`;
+            // Abstains count as decided, so "voted" would be wrong for an abstain.
+            progressEl.innerText = `${state.voteProgress.voted} of ${state.voteProgress.total} decided`;
         }
+        // Same rule as the daily trial: participation is public, the ballot is not.
+        if (waitingEl) waitingEl.innerText = waitingNamesText(state);
 
         if (isDead) {
             if (controls) controls.style.display = 'none';
             if (waitingMsg) {
                 waitingMsg.style.display = 'block';
-                waitingMsg.querySelector('p')!.innerHTML = '<p class="fog-text">The dead have no voice in the election.</p>';
+                waitingMsg.querySelector('p')!.innerText = 'The dead have no voice in the election.';
             }
             if (listEl) listEl.style.pointerEvents = 'none';
         } else if (hasVoted) {
             if (controls) controls.style.display = 'none';
-            if (waitingMsg) waitingMsg.style.display = 'block';
+            if (waitingMsg) {
+                waitingMsg.style.display = 'block';
+                waitingMsg.querySelector('p')!.innerText = `Your vote is in. ${waitingNamesText(state)}`;
+            }
             if (listEl) { listEl.style.pointerEvents = 'none'; listEl.style.opacity = '0.7'; }
         } else {
             if (controls) controls.style.display = 'flex';

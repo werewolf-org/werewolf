@@ -1045,11 +1045,16 @@ describe('voting: vote integrity', () => {
         await skipElection(t);
 
         const [p1, p2, p3, p4] = livingClients(t) as [Client, Client, Client, Client];
+        // Participation is public: every snapshot says who has already decided, and an
+        // abstain counts exactly like a named ballot. The choice stays private.
+        const decided = (state: Snapshot): string[] =>
+            state.players.filter((p) => p.isAlive && p.hasVoted).map((p) => p.playerUUID).sort();
         for (const client of t.clients) {
             expect(client.state!.voteProgress, `${name(client)}: the corpse is not in the tally`).toEqual({
                 voted: 0,
                 total: 4,
             });
+            expect(decided(client.state!), `${name(client)}: nobody has decided yet`).toEqual([]);
             expect(client.state!.voteResults).toBeNull();
         }
 
@@ -1078,16 +1083,21 @@ describe('voting: vote integrity', () => {
         await castVotes(t, [[p1, p1]]);
         let seen = await t.manager.waitFor((s) => s.voteProgress?.voted === 1, 'one vote counted');
         expect(seen.voteProgress).toEqual({ voted: 1, total: 4 });
+        expect(decided(seen), 'the table can see who has decided').toEqual([p1.playerUUID]);
+        expect(seen.players.find((p) => p.playerUUID === p2.playerUUID), 'a ballot leaked into the roster')
+            .not.toHaveProperty('voteTargetUUID');
         expect(seen.voteResults, 'a partial ballot must not be reported').toBeNull();
 
         await castVotes(t, [[p2, p1]]);
         seen = await t.manager.waitFor((s) => s.voteProgress?.voted === 2, 'two votes counted');
         expect(seen.voteProgress).toEqual({ voted: 2, total: 4 });
+        expect(decided(seen)).toEqual([p1.playerUUID, p2.playerUUID].sort());
         expect(seen.voteResults).toBeNull();
 
         await castVotes(t, [[p3, p2]]);
         seen = await t.manager.waitFor((s) => s.voteProgress?.voted === 3, 'three votes counted');
         expect(seen.voteProgress).toEqual({ voted: 3, total: 4 });
+        expect(decided(seen)).toEqual([p1.playerUUID, p2.playerUUID, p3.playerUUID].sort());
         expect(seen.voteResults, 'the ballot is still open').toBeNull();
 
         await castVotes(t, [[p4, p1]]);

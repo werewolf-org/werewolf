@@ -30,7 +30,7 @@ The project follows a **Reactive State Machine** pattern. In this model, the Fro
 ### Core Mandates:
 1.  **State-Driven UI**: UI elements MUST NOT trigger other UI elements directly. All UI changes must be a side-effect of a state update. (e.g., A button click calls a socket action -> Socket updates the Store -> Store triggers a UI re-render).
 2.  **Unidirectional Data Flow**: Backend State -> Socket `syncState` -> Frontend Store -> UI.
-3.  **Tailored Snapshots**: Instead of granular events, the backend sends a "Tailored State Snapshot" (`syncState`) to each player. This snapshot contains only the information that specific player is allowed to see (e.g., their own role, their own potion status, and public game info). **Exception**: a dead player's `role` is public once they die (the death popup shows it), and when the phase is `GAME_OVER` all player roles and statuses are revealed to everyone for the summary screen.
+3.  **Tailored Snapshots**: Instead of granular events, the backend sends a "Tailored State Snapshot" (`syncState`) to each player. This snapshot contains only the information that specific player is allowed to see (e.g., their own role, their own potion status, and public game info). **Exception**: a dead player's `role` is public once they die (the death popup shows it), and when the phase is `GAME_OVER` all player roles and statuses are revealed to everyone for the summary screen. **Participation vs choice**: the roster carries `nomination` and `hasVoted`, so the UI can name who the table is still waiting for, while a ballot stays private (`myVoteTargetUUID`) until `voteResults` resolves the stage.
 
 # Development Setup
 
@@ -192,7 +192,7 @@ audio pacing or real device behaviour.
 | `game.store.test.ts` | 10 | `GameStore` singleton, CRUD, `hasGame`, `cleanupOldGames` |
 | `game.manager.test.ts` | 17 | Manager authority, join/rejoin/disconnect, dead players, `managerAdvance` |
 | `socket-seats.test.ts` | 7 | Several sockets on one seat: fan-out to all, acting from either, promotion on disconnect, last close clears the seat, GM rights on every tab, moving a socket between games |
-| `sync.provider.test.ts` | 23 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info |
+| `sync.provider.test.ts` | 24 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info, `hasVoted` public while the ballot stays private |
 | `scenarios.test.ts` | 20 | **Full game simulations**: multi-round games, couple wins, all-abstain, witch dual potion, sheriff tie-breaker, red lady death, dead-lock scenarios |
 | `e2e/smoke.test.ts` | 2 | The harness itself: lobby to first night, per-player snapshots |
 | `e2e/game-flow.test.ts` | 11 | Complete nights (heal, poison, red lady), sheriff election, full day, all three win conditions, sheriff death badge clear, dead-GM election exit |
@@ -201,12 +201,12 @@ audio pacing or real device behaviour.
 | `e2e/rejoin-hardening.test.ts` | 16 | Concurrent double actions from two sockets, rejoin racing a turn advance, 5-socket storms, seat swaps, A→B→A game moves, unbound/deleted disconnects, dead/GAME_OVER rejoin, two GM tabs, public-state equality |
 | `e2e/sheriff-election.test.ts` | 8 | Direct election (no nomination): plurality, self-vote, abstain, tie → no sheriff, `nominate` rejected, corpse/unknown target rejected, dead ballot ignored, one-step force-advance |
 | `e2e/security.test.ts` | 9 | Manager-only actions, stranger socket, out-of-turn, dead players, target validation, snapshot leaks, escape hatch, intentional death reveal |
-| `e2e/voting.test.ts` | 28 | Every tie shape (incl. three-way and the sheriff as a tied candidate), abstains, same-candidate seconds (the ballot dedupes, the snapshot keeps every nominator), vote integrity, lynch chains, direct-ballot election ordering, `forceAdvance` from each day stage |
+| `e2e/voting.test.ts` | 28 | Every tie shape (incl. three-way and the sheriff as a tied candidate), abstains, same-candidate seconds (the ballot dedupes, the snapshot keeps every nominator), public participation vs private ballots, vote integrity, lynch chains, direct-ballot election ordering, `forceAdvance` from each day stage |
 | `e2e/roles-and-night.test.ts` | 27 | Composition extremes (1–3 wolves, no cupid/witch, all five wakers), night-order integrity, cupid/witch/seer/red-lady edges, three rounds of persistence |
 | `e2e/protocol.test.ts` | 23 | Malformed payloads per event, unknown events, replay, concurrent emits, multi-game isolation, socket churn, name/ID validation |
 | `e2e/fuzz.test.ts` | 2 | Seeded random full games: 3 per run by default, invariant checking after every sync, hard-branch coverage report |
 
-Browser suite (`e2e/specs/`, Playwright, ~3.5 min, 74 tests):
+Browser suite (`e2e/specs/`, Playwright, ~3.5 min, 75 tests):
 
 | File | Tests | Coverage |
 |---|---|---|
@@ -222,8 +222,9 @@ Browser suite (`e2e/specs/`, Playwright, ~3.5 min, 74 tests):
 | `navigation.spec.ts` | 11 | Deep links, Back/Forward, hash case, two games in one context, reload on distribution and game over, overflow, tap-target size |
 | `live-sync.spec.ts` | 4 | Two live tabs on one seat follow the game (websocket-instrumented, no reload), resume re-announces and catches up, a rejection shows the toast instead of a dialog, a second tab does not steal the role chip |
 | `nominations.spec.ts` | 2 | One list of every living player and a separate "No nomination" button, a second nomination is legal and labelled, progress names the undecided players, all-pass ends the day without a trial |
+| `vote-progress.spec.ts` | 1 | The trial names who is still deciding, "you" when the phone holding it is the blocker, the names shrink as ballots land, and an abstain counts as decided |
 
-**Totals: 433 backend tests (298 unit + 135 socket e2e, 22 files) and 74 browser tests.**
+**Totals: 434 backend tests (299 unit + 135 socket e2e, 22 files) and 75 browser tests.**
 
 
 ### Test Helpers

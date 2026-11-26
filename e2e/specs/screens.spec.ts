@@ -156,15 +156,20 @@ test.describe('screens', () => {
                 await expect(phone.page.locator('#sheriff-vote-list')).toContainText(nameOf(index));
             }
         }
-        await expect(gm.locator('#sheriff-vote-progress')).toHaveText(`0/${phones.length} players have voted`);
+        await expect(gm.locator('#sheriff-vote-progress')).toHaveText(`0 of ${phones.length} decided`);
 
         const targetIndex = game.roles.findIndex((role, index) => index !== 0 && (role === 'Villager' || role === 'Seer'));
         expect(targetIndex).toBeGreaterThan(0);
         const targetName = nameOf(targetIndex);
         const otherVoterIndex = targetIndex === 1 ? 2 : 1;
 
-        // Every living phone votes for the same seat; the last ballot resolves the election.
-        for (let i = 0; i < phones.length; i++) {
+        // First ballot only: participation becomes public, the choice does not.
+        await voteForSheriff(phones[0]!.page, targetName);
+        await expect(phones[1]!.page.locator('#sheriff-vote-progress')).toHaveText(`1 of ${phones.length} decided`);
+        await expect(phones[1]!.page.locator('#sheriff-vote-waiting')).toContainText('Waiting for you');
+
+        // Every remaining living phone votes for the same seat; the last ballot resolves it.
+        for (let i = 1; i < phones.length; i++) {
             const page = phones[i]!.page;
             await expect(page.locator('#sheriff-voting-view')).toBeVisible();
             await voteForSheriff(page, targetName);

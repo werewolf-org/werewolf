@@ -203,6 +203,23 @@ describe("sync.provider", () => {
     expect(state.voteProgress).toEqual({ voted: 2, total: 3 });
   });
 
+  it("publishes who has decided but never what they chose", () => {
+    const game = createGameWithPlayers(3);
+    game.players[0].voteTargetUUID = "p1";
+    game.players[1].voteTargetUUID = false;
+    const state = getLocalPlayerState(game, game.players[0]) as any;
+
+    // Participation is public: an abstain counts as decided, just like a named ballot.
+    expect(state.players.map((p: any) => p.hasVoted)).toEqual([true, true, false]);
+
+    // The choice is not. Only the viewer's own target survives, and only in its own field.
+    expect(state.myVoteTargetUUID).toBe("p1");
+    for (const entry of state.players) {
+      expect(entry).not.toHaveProperty("voteTargetUUID");
+      expect(entry).not.toHaveProperty("vote");
+    }
+  });
+
   it("hides voteResults until voting is complete", () => {
     const game = createGameWithPlayers(2);
     game.players[0].voteTargetUUID = "p1";

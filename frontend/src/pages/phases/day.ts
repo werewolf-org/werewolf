@@ -4,6 +4,7 @@ import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
 import { audioService } from '../../audio.service';
 import { escapeHtml } from '../../html';
+import { nameList, waitingNamesText } from '../../vote-status';
 
 export class DayPhase extends View {
     private selectedNominationUUID: string | false | null = null;
@@ -121,11 +122,6 @@ export class DayPhase extends View {
             .map(p => p.displayName || 'Unnamed Player');
     }
 
-    private nameList(names: string[]): string {
-        if (names.length <= 1) return names[0] ?? '';
-        return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-    }
-
     private updateUI() {
         const state = getState();
         const nominationView = document.getElementById('day-nomination-view');
@@ -174,7 +170,7 @@ export class DayPhase extends View {
         if (waitingEl) {
             waitingEl.innerText = undecided.length === 0
                 ? 'Everyone has decided.'
-                : `Waiting for ${this.nameList(undecided.map(p => p.displayName || 'Unnamed Player'))}`;
+                : `Waiting for ${nameList(undecided.map(p => p.displayName || 'Unnamed Player'))}`;
         }
 
         if (isDead) {
@@ -192,7 +188,7 @@ export class DayPhase extends View {
                 const what = me?.nomination === false ? 'You nominated no one.' : `You nominated ${escapeHtml(targetName)}.`;
                 const stillWaiting = undecided.filter(p => p.playerUUID !== state.playerUUID).map(p => p.displayName || 'Unnamed Player');
                 const tail = stillWaiting.length > 0
-                    ? ` Waiting for ${escapeHtml(this.nameList(stillWaiting))}.`
+                    ? ` Waiting for ${escapeHtml(nameList(stillWaiting))}.`
                     : ' Everyone has decided.';
                 waitingMsg.innerHTML = `<p class="fog-text">${what}${tail}</p>`;
             }
@@ -311,12 +307,15 @@ export class DayPhase extends View {
         const waitingMsg = document.getElementById('vote-confirmed-message');
         const listEl = document.getElementById('day-vote-list');
         const progressEl = document.getElementById('vote-progress');
+        const waitingEl = document.getElementById('vote-waiting');
         const confirmBtn = document.getElementById('confirm-vote-btn') as HTMLButtonElement | null;
 
         if (progressEl && state.voteProgress) {
             // Abstains count as decided; "voted" would imply everyone named someone.
             progressEl.innerText = `${state.voteProgress.voted} of ${state.voteProgress.total} decided`;
         }
+        // Participation is public, the ballot is not: this names who still has to act.
+        if (waitingEl) waitingEl.innerText = waitingNamesText(state);
 
         if (confirmBtn) {
             const selection = this.selectedTargetUUID;
@@ -340,14 +339,15 @@ export class DayPhase extends View {
             if (controls) controls.style.display = 'none';
             if (waitingMsg) {
                 waitingMsg.style.display = 'block';
-                // Votes are private until the tally resolves, so the waiter cannot be named.
+                // Votes are private until the tally resolves, but who is still deciding is
+                // public, so the wait can name names without giving a ballot away.
                 const target = state.myVoteTargetUUID === false
                     ? null
                     : state.players.find(p => p.playerUUID === state.myVoteTargetUUID);
                 const what = state.myVoteTargetUUID === false
                     ? 'You abstained.'
                     : `You voted for ${escapeHtml(target?.displayName || 'Unnamed Player')}.`;
-                waitingMsg.innerHTML = `<p class="fog-text">${what} Waiting for the rest of the village...</p>`;
+                waitingMsg.innerHTML = `<p class="fog-text">${what} ${escapeHtml(waitingNamesText(state))}</p>`;
             }
             if (listEl) {
                 listEl.style.pointerEvents = 'none';
@@ -401,7 +401,7 @@ export class DayPhase extends View {
                             ${escapeHtml(p.displayName || 'Unnamed Player')}${isMe ? ' (You)' : ''}
                             ${p.isSheriff ? '<span class="sheriff-badge" title="Sheriff">🎖️</span>' : ''}
                         </span>
-                        <span class="fog-text" style="font-size: 0.8rem; text-align: right;">Nominated by ${escapeHtml(this.nameList(nominators))}</span>
+                        <span class="fog-text" style="font-size: 0.8rem; text-align: right;">Nominated by ${escapeHtml(nameList(nominators))}</span>
                     </div>
                 </li>
             `;

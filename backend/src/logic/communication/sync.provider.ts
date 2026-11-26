@@ -2,7 +2,7 @@ import { Role } from "@shared/roles.js";
 import type { Game, Player } from "../../models.js";
 import { Phase } from "@shared/phases.js";
 import { getWerewolfVictimUUID, getWerewolfVotes } from "../selectors/night.selectors.js";
-import { getNominations, getVoteResult, isNominationsFinished } from "../selectors/vote.selectors.js";
+import { getNominations, getVoteResult, isNominationsFinished, isVoteCast } from "../selectors/vote.selectors.js";
 
 export const getLocalPlayerState = (game: Game, player: Player): object => {
     const socketId: string | null = player.socketId;
@@ -19,7 +19,7 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
     if (player.isAlive && (player.role === Role.WEREWOLF || player.role === Role.WITCH)) werewolfVictim = getWerewolfVictimUUID(game);
 
     const alivePlayers = game.players.filter(p => p.isAlive);
-    const votedCount = alivePlayers.filter(p => p.voteTargetUUID !== null).length;
+    const votedCount = alivePlayers.filter(p => isVoteCast(p.voteTargetUUID)).length;
     const voteProgress = { voted: votedCount, total: alivePlayers.length };
 
     // Cupid confirmation status
@@ -49,6 +49,11 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
         isSheriff: p.playerUUID === game.sheriffUUID,
         isAlive: p.isAlive,
         nomination: p.nominationUUID,
+        // Participation, not the choice. "Who are we still waiting for?" is public at a
+        // table, and it is what lets the game master prod a phone that has gone quiet
+        // without exposing a single ballot. The target stays in myVoteTargetUUID, private
+        // to its owner, until voteResults resolves the stage.
+        hasVoted: isVoteCast(p.voteTargetUUID),
         role: (game.phase === Phase.GAME_OVER || !p.isAlive) ? p.role : null
     }));
 

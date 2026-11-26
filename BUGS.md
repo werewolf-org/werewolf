@@ -162,6 +162,25 @@ Naming the undecided players is fine during nominations because that stage is pu
 bare count. That visibility difference is also the answer to "why two stages at all": nominate in the open,
 then decide without seeing which way the room is leaning.
 
+**R11 [UX, fixed] The trial showed how far along it was, never who it was waiting for.**
+The vote stage showed "2 of 5 decided" and nothing else, so a stalled table had to ask around the
+room which phone was the blocker, and the GM had no better view than anyone else. The count was
+already public, so naming the non-voters leaks nothing about the ballot: participation is not the
+secret, the choice is.
+
+- `sync.provider.ts` publishes `players[].hasVoted` (a boolean from `isVoteCast`), never the target.
+  `voteProgress` now uses the same predicate, so an abstain counts as decided in both places.
+- The day trial and the sheriff election name the waiters under the count ("Waiting for you, Clara
+  and Deniz."), and the post-vote message names them too. "You" is used when the phone holding the
+  screen is the blocker, so the line reads as an instruction rather than a status.
+- No threshold and no GM-only view. A threshold hides the names exactly when the phase is most stuck,
+  and the GM is a player who can be the missing one.
+- Guards: `sync.provider.test.ts` asserts `hasVoted` is public and that no roster entry carries a
+  vote target; the voting e2e test asserts the participation flags track the count; `vote-progress.spec.ts`
+  asserts the copy, including the abstain case.
+- Deliberately accepted: naming the waiters is social pressure. That is the point of a shared clock,
+  and the nomination stage already behaved that way, so the two stages now match.
+
 **Observations, deliberately not changed:**
 - The red lady's `#red-lady-waiting-message` never renders: `handleSleepover` advances the turn immediately,
   so she goes straight to the sleep view and learns the outcome at dawn.

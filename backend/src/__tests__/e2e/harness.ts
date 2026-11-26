@@ -16,6 +16,7 @@ export interface SnapshotPlayer {
     isSheriff: boolean;
     role: string | null;
     nomination: string | false | null;
+    hasVoted: boolean;
 }
 
 export interface Snapshot {

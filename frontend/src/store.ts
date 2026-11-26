@@ -9,6 +9,9 @@ export interface LocalPlayerModel {
     isSheriff: boolean,
     role: Role | null,
     nomination: string | false | null,
+    // Whether this player has cast their ballot in the current vote stage. Public on
+    // purpose: the table is allowed to know who it is waiting for, never what they chose.
+    hasVoted: boolean,
 }
 
 export interface LocalAppState {
