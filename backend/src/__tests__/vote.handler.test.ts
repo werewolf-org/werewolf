@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { createMockGame, createMockPlayer, createGameWithPlayers, setRoles } from "./test-helpers.js";
 import { Phase } from "@shared/phases.js";
 import { Role } from "@shared/roles.js";
-import { VoteHandler, handleSheriffDeath } from "../logic/handlers/vote.handler.js";
+import { VoteHandler } from "../logic/handlers/vote.handler.js";
+import { clearDeadSheriff } from "../logic/rules/deaths.js";
 import { isNominationsFinished, isVotingComplete, getNominatedPlayers } from "../logic/selectors/vote.selectors.js";
 
 describe("vote.handler", () => {
@@ -529,27 +530,27 @@ describe("vote.handler", () => {
     });
   });
 
-  describe("handleSheriffDeath (B23)", () => {
+  describe("clearDeadSheriff (B23)", () => {
     it("clears the badge when the sheriff died", () => {
       const game = createGameWithPlayers(3);
       game.sheriffUUID = "p1";
       game.players[1].isAlive = false;
-      handleSheriffDeath(game);
+      clearDeadSheriff(game);
       expect(game.sheriffUUID).toBeNull();
     });
 
     it("keeps the badge while the sheriff is alive", () => {
       const game = createGameWithPlayers(3);
       game.sheriffUUID = "p1";
-      handleSheriffDeath(game);
+      clearDeadSheriff(game);
       expect(game.sheriffUUID).toBe("p1");
     });
 
     it("is a no-op when nobody holds the badge", () => {
       const game = createGameWithPlayers(2);
       game.players[0].isAlive = false;
-      expect(() => handleSheriffDeath(game)).not.toThrow();
-      handleSheriffDeath(game);
+      expect(() => clearDeadSheriff(game)).not.toThrow();
+      clearDeadSheriff(game);
       expect(game.sheriffUUID).toBeNull();
     });
 

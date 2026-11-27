@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
-import { getState, resetState, setState, storePlayerUUID, type LocalAppState } from './store';
+import type { Snapshot } from '@shared/snapshot.js';
+import { getState, resetState, setState, storePlayerUUID } from './store';
 import { navigate } from './router';
 import { recordClientEvent } from './debug-report';
 
@@ -222,7 +223,7 @@ class SocketService {
             setState({ gameId: data.gameId, playerUUID: data.playerUUID });
         });
 
-        this.socket.on('syncState', (data: Partial<LocalAppState> ) => {
+        this.socket.on('syncState', (data: Snapshot) => {
             console.log('syncState, patch: ', data);
             // Every snapshot, not a summary: a wrong screen is a story about the order the
             // patches arrived in, and that cannot be reconstructed from the last one.

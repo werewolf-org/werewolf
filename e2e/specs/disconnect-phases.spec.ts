@@ -17,6 +17,7 @@ import {
     waitUntilVisible,
 } from '../lib/flows';
 import type { Phone } from '../lib/flows';
+import type { Snapshot } from '../../shared/snapshot';
 
 // The disconnection matrix. Reconnect.spec proves the single case "reload mid-game"; this
 // file walks every phase with the realistic case: the phone loses its signal (offline),
@@ -35,24 +36,7 @@ const nameOf = (index: number): string => (index === 0 ? 'Gamemaster' : `Player 
 /** Display name from the role card -> Role enum member ("Red Lady" -> "RED_LADY"). */
 const roleEnum = (display: string): string => display.trim().toUpperCase().replace(/\s+/g, '_');
 
-/** A snapshot is the only thing a player ever sees: both the UI and these assertions use it. */
-interface Snapshot {
-    phase: string;
-    activeNightRole: string | null;
-    playerUUID: string;
-    displayName: string;
-    isManager: boolean;
-    role: string | null;
-    players: Array<{ playerUUID: string; displayName: string; isAlive: boolean }>;
-    nominationsFinished?: boolean;
-    lynchDone?: boolean;
-    sheriffElectionDone?: boolean;
-    readyForNight?: boolean;
-    myVoteTargetUUID?: string | false | null;
-    myNominationUUID?: string | false | null;
-    winningTeam?: string | null;
-    [key: string]: any;
-}
+// A snapshot is the only thing a player ever sees: both the UI and these assertions use it.
 
 interface ProbeState {
     sids: string[];

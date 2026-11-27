@@ -14,6 +14,7 @@ The `shared/` folder contains code that is used by both the frontend and the bac
 
 - **`roles.ts`**: Contains the `Role` enum, `RoleDef` interface, and the `ROLES` constant which defines the metadata (names, descriptions, teams, night order) for every role in the game.
 - **`phases.ts`**: Contains the enum `Phase`.
+- **`snapshot.ts`**: Contains `Snapshot`, `SnapshotPlayer` and `WinningTeam`, the wire contract one player receives through `syncState`. The field types live here; the audience rules (who may see which field) live in `getLocalPlayerState`.
 
 # Prototypes (`prototype/`)
 
@@ -50,24 +51,28 @@ The `GameManager` is the central entry point for all game traffic (called from `
 - **State Management**: Fetches the `Game` from the store and ensures it is updated and broadcasted after every change via `broadcastStateAndStore()`.
 - **Traffic Control**: It identifies the player by their socket ID and delegates the specific business logic to specialized **Handlers**.
 - **Validation**: Uses **Selectors** to verify if a player is authorized to perform an action (e.g., checking if it's currently their night turn).
+- **Seat Binding**: `seat.registry.ts` owns the socket-to-seat maps and the "one seat, several sockets, last bound is primary" invariant. `GameManager` asks it instead of keeping its own maps, and repairs `Player.socketId` from the release it returns.
 
 ### 2. State Mutation (`handlers/`)
 These modules contain the "Doers"—the only logic permitted to modify the `Game` and `Player` objects.
 - **`lobby.handler.ts`**: Manages the pre-game lifecycle (creation, joining, name changes) and the complex role distribution logic.
-- **`night.handler.ts`**: Controls the progression of night turns. It resolves all night actions (Werewolf kills, Witch potions, Red Lady visits) into a "morning report" of deaths and transitions the game to the next phase.
+- **`night.handler.ts`**: Controls the progression of night turns. It gathers the night actions and delegates the dawn deaths to `rules/deaths.ts`, then transitions the game to the next phase.
 - **`vote.handler.ts`**: Reusable logic for both Lynch and Sheriff election voting. It handles vote casting and resolves the outcome, including tie-breaking rules. The daily lynch uses a nomination round before the vote; the sheriff election does **not**: every living player is a candidate from the start and the vote resolves by plurality.
 - **`role.handler.ts`**: Contains the specific action logic for individual roles (e.g., Werewolf consensus, Seer reveals, Cupid's bond).
 
-### 3. Derived State (`selectors/`)
+### 3. Death Rules (`rules/deaths.ts`)
+The only module permitted to apply deaths. It skips a victim who is already dead, takes a living lover with the victim, clears the sheriff badge from a corpse, and resolves the werewolf / witch / red-lady victim list for a night. Both the dawn resolution and the lynch call it; the night handler no longer imports the vote handler.
+
+### 4. Derived State (`selectors/`)
 These modules contain the "Readers"—pure utility functions that calculate information from the `Game` object without ever modifying it.
 - **`night.selectors.ts`**: Logic to determine the Werewolves' target, find the next role to wake up based on `nightOrder`, and validate role turns.
 - **`vote.selectors.ts`**: Math-heavy logic to calculate vote counts, check for voting completion, and determine winners (handling the Sheriff's tie-breaking power).
 
-### 4. Communication & Sync (`communication/sync.provider.ts`)
+### 5. Communication & Sync (`communication/sync.provider.ts`)
 The `SyncProvider` is responsible for building the **Tailored Snapshots**. 
 - It aggregates the current game state and authorizations into a customized JSON patch for each specific player.
 - It ensures players only see what they are allowed to (e.g., a Villager doesn't see Werewolf votes).
-- Each snapshot is delivered to **every socket bound to that player's seat**, not just the newest one. A phone can hold a seat through a second tab, a reopened link, or a reconnect that reaches the server before the old socket times out; all of those screens stay live and any of them may act (`GameManager.socketSeats` / `seatSockets`). Binding only the newest socket used to freeze every other tab until a manual refresh.
+- Each snapshot is delivered to **every socket bound to that player's seat**, not just the newest one. A phone can hold a seat through a second tab, a reopened link, or a reconnect that reaches the server before the old socket times out; all of those screens stay live and any of them may act (`SeatRegistry`). Binding only the newest socket used to freeze every other tab until a manual refresh.
 - **Exception**: when the phase is `GAME_OVER` it reveals all roles and statuses for the summary screen; a dead player's role is revealed as soon as they die (this is intentional, the death popup shows it).
 
 ## Communication Flow
@@ -220,12 +225,14 @@ audio pacing or real device behaviour.
 |---|---|---|
 | `vote.selectors.test.ts` | 31 | `isVotingComplete`, `getVoteResult`, `getNominations`, `getNominatedPlayers` (dedupes a second), `getVotingWinner` (ties, abstains, sheriff tie-breaker), `getActingPlayers` |
 | `night.selectors.test.ts` | 31 | `getWerewolfVotes`, `getWerewolfVictimUUID`, `getNextToWakeUp` (night order, first-night-only roles), `checkPlayerNightRole` (turn, liveness) |
-| `vote.handler.test.ts` | 64 | `nominate` (DAY-only, several players may name the same target), `castLynchVote`, `castSheriffVote` (direct, no nomination), `readyForNight`, `acceptSheriffRole`, `forceAdvance`, `handleSheriffDeath` |
+| `vote.handler.test.ts` | 64 | `nominate` (DAY-only, several players may name the same target), `castLynchVote`, `castSheriffVote` (direct, no nomination), `readyForNight`, `acceptSheriffRole`, `forceAdvance`, `clearDeadSheriff` |
+| `deaths.test.ts` | 17 | `resolveDeaths` (skip corpses, lover chain, dedupe, atomic throw, badge), `resolveNightDeaths` (heal, poison, red lady escape/host/poison/lover, badge) |
 | `lobby.handler.test.ts` | 29 | `createGame`, `createNewPlayer`, `roleDistribution` validation, `startGame` atomicity, `closeJoining`, `changeName`, game id uniqueness |
 | `night.handler.test.ts` | 18 | `nextRole`, `forceNextRole`, night resolution (witch heal/kill, lover chain, red lady, sheriff death) |
 | `role.handler.test.ts` | 48 | Werewolf, Seer, Cupid, Witch, RedLady handlers incl. target and turn validation |
 | `game.store.test.ts` | 10 | `GameStore` singleton, CRUD, `hasGame`, `cleanupOldGames` |
 | `game.manager.test.ts` | 17 | Manager authority, join/rejoin/disconnect, dead players, `managerAdvance` |
+| `seat.registry.test.ts` | 9 | `bind`, `release`, bind order, remaining sockets, primary promotion, unknown socket, idempotent bind, moving a socket between seats, `socketsFor` copy |
 | `socket-seats.test.ts` | 7 | Several sockets on one seat: fan-out to all, acting from either, promotion on disconnect, last close clears the seat, GM rights on every tab, moving a socket between games |
 | `sync.provider.test.ts` | 25 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info, `hasVoted`/`readyForNight` public while the ballot stays private |
 | `debug.journal.test.ts` | 14 | Sequence numbers, state dedupe, rejected/in-flight annotations, event and byte budgets, name/role/death rendering, `since`, staleness, change descriptions |
@@ -264,7 +271,7 @@ Browser suite (`e2e/specs/`, Playwright, ~3 min, 78 tests):
 | `day-actions.spec.ts` | 2 | The nomination, ballot and ready buttons sit fully inside an unscrolled phone viewport on a day screen taller than the screen; every phone sees who has confirmed the night, including the dead and the phone that is the last one missing |
 | `debug-report.spec.ts` | 1 | The GM copies a client report containing the game, the current role, the socket lifecycle and the `syncState` history; a normal phone has no such button |
 
-**Totals: 464 backend tests (325 unit + 139 socket e2e, 25 files) and 78 browser tests.**
+**Totals: 490 backend tests (351 unit + 139 socket e2e, 27 files) and 78 browser tests.**
 
 
 ### Test Helpers

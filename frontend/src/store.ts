@@ -1,21 +1,11 @@
 import { Role} from '@shared/roles.js'
 import { Phase } from '@shared/phases';
+import type { Snapshot, SnapshotPlayer, WinningTeam } from '@shared/snapshot.js';
 import { View } from './base-view';
 
-export interface LocalPlayerModel {
-    playerUUID: string, 
-    displayName: string,
-    isAlive: boolean,
-    isSheriff: boolean,
-    role: Role | null,
-    nomination: string | false | null,
-    // Whether this player has cast their ballot in the current vote stage. Public on
-    // purpose: the table is allowed to know who it is waiting for, never what they chose.
-    hasVoted: boolean,
-    // Whether this player has confirmed the lynch result, so the day can end. Also public:
-    // naming the phone that has not tapped yet is the only way to unstick the table.
-    readyForNight: boolean,
-}
+// One shape for a seat, whether it arrives over the wire or is read from the store.
+// `SnapshotPlayer` is the wire type; the alias keeps the existing imports working.
+export type LocalPlayerModel = SnapshotPlayer;
 
 export interface LocalAppState {
     isConnected: boolean,
@@ -41,7 +31,7 @@ export interface LocalAppState {
     myVoteTargetUUID: string | false | null,
     lynchDone: boolean,
     sheriffElectionDone: boolean,
-    winningTeam: string | null,
+    winningTeam: WinningTeam | null,
     
     // aggregated state (from game model)
     nominationsFinished: boolean;
@@ -67,6 +57,15 @@ export interface LocalAppState {
     cupidSecondLoverConfirmed: boolean;
 
 }
+
+// Build-time guard for the socket seam: every field the server sends must exist in
+// the store with a compatible type. The store may be wider (its fields are nullable
+// before the first snapshot) and may carry client-only fields such as `isConnected`.
+// `vite build` runs `tsc`, so a drift fails the build rather than a runtime screen.
+type _AssertTrue<T extends true> = T;
+export type _SnapshotFitsStore = _AssertTrue<
+    Snapshot extends Pick<LocalAppState, keyof Snapshot> ? true : false
+>;
 
 // Single source of truth for "no game yet". Both the initial store and
 // resetState() derive from this so the two can never drift apart.

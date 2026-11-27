@@ -5,6 +5,7 @@
   "main": "roles.ts",
   "exports": {
     "./roles": "./roles.ts",
-    "./phases": "./phases.ts"
+    "./phases": "./phases.ts",
+    "./snapshot": "./snapshot.ts"
   }
 }

@@ -5,7 +5,7 @@ import { Phase } from '@shared/phases.js';
 import { Role } from '@shared/roles.js';
 import { GameStore } from '../../store/game.store.js';
 
-// Adversarial rejoin cases for `GameManager.socketSeats` / `seatSockets`.
+// Adversarial rejoin cases for the `SeatRegistry`.
 //
 // The contract under attack: a seat may be held by several live sockets at once. Every
 // one of them gets the same tailored snapshot, any one of them may act, and a seat is

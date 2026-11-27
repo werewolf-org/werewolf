@@ -9,51 +9,8 @@ import { Phase } from '@shared/phases.js';
 // real socket.io clients, exactly like N phones would. Assertions are made on the
 // tailored snapshots each client receives, because that is all a player ever sees.
 
-export interface SnapshotPlayer {
-    playerUUID: string;
-    displayName: string;
-    isAlive: boolean;
-    isSheriff: boolean;
-    role: string | null;
-    nomination: string | false | null;
-    hasVoted: boolean;
-    readyForNight: boolean;
-}
-
-export interface Snapshot {
-    gameId: string;
-    playerUUID: string;
-    phase: Phase;
-    activeNightRole: string | null;
-    players: SnapshotPlayer[];
-    isManager: boolean;
-    displayName: string | null;
-    role: string | null;
-    lovePartnerUUID: string | null;
-    lovePartnerConfirmed: boolean;
-    readyForNight: boolean;
-    myNominationUUID: string | false | null;
-    myVoteTargetUUID: string | false | null;
-    lynchDone: boolean;
-    sheriffElectionDone: boolean;
-    winningTeam: string | null;
-    nominationsFinished: boolean;
-    voteResults: Record<string, string | false> | null;
-    voteProgress: { voted: number; total: number } | null;
-    votedOutUUID: string | null;
-    werewolfVotes: Record<string, string> | null;
-    werewolfVictim: string | null;
-    witchUsedHealingPotion: boolean;
-    witchUsedKillingPotion: boolean;
-    redLadySleepoverUUID: string | null;
-    seerRevealUUID: string | null;
-    seerRevealRole: string | null;
-    cupidSelectedLovers: boolean;
-    cupidFirstLoverUUID: string | null;
-    cupidSecondLoverUUID: string | null;
-    cupidFirstLoverConfirmed: boolean;
-    cupidSecondLoverConfirmed: boolean;
-}
+import type { Snapshot, SnapshotPlayer } from '@shared/snapshot.js';
+export type { Snapshot, SnapshotPlayer };
 
 const DEFAULT_TIMEOUT = 5000;
 

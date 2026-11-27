@@ -1,4 +1,5 @@
 import { Server } from 'socket.io';
+import type { Snapshot } from '@shared/snapshot.js';
 
 export class SocketService {
     private static instance: SocketService;
@@ -52,7 +53,7 @@ export class SocketService {
 
     // --- Game Specific Emitters (Domain Logic) ---
 
-    public syncState(socketId: string | null, localState: object) {
+    public syncState(socketId: string | null, localState: Snapshot) {
         if(socketId) this.emitToPlayer(socketId, 'syncState', localState)
     }
 

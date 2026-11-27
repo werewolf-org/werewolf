@@ -112,7 +112,7 @@ socket connected, receiving nothing, and unable to act (`getPlayerBySocketId` fa
 was a refresh. Reproduced as a failing e2e test: an older socket that stays connected never sees the next
 phase change, ever.
 
-Fixed by tracking a set of sockets per seat (`socketSeats` / `seatSockets` in `GameManager`): every `joinGame`
+Fixed by tracking a set of sockets per seat (`SeatRegistry`): every `joinGame`
 adds a binding, every snapshot fans out to all of them, any bound socket may act, and `handleDisconnect` only
 clears the seat when the last socket is gone (promoting another live socket to primary otherwise). A socket
 that moves to another game is unbound from the old seat first, so it cannot keep receiving that game's
@@ -416,20 +416,17 @@ Two phone problems in the same phase.
 
 ## Reference: snapshot audiences
 
-| Field | Sent to | Note |
+The wire shape (field names and required types) lives in `shared/snapshot.ts`. This table records only who may see each field; keep the shape out of it so the two cannot drift.
+
+| Audience | Fields | Note |
 |---|---|---|
-| `gameId`, `playerUUID` | all | B1, B2 |
-| `phase`, `lynchDone`, `sheriffElectionDone`, `winningTeam` | all | public |
-| `activeNightRole` | all | reveals existence of the role |
-| `players[]` (`playerUUID`, `displayName`, `isSheriff`, `isAlive`, `nomination`, `role`) | all | `role` non-null on death (B42) |
-| `displayName`, `isManager`, `role`, `lovePartner*`, `readyForNight`, `myVoteTargetUUID`, `myNominationUUID` | own | ok |
-| `nominationsFinished`, `voteProgress`, `votedOutUUID` | all | public |
-| `voteResults` | all | full ballot, incl. dead voters |
-| `werewolfVotes`, `werewolfVictim` | alive werewolves (+ witch) | correctly gated |
-| `witchUsed*Potion` | own flags | misnamed: reads `false` for non-witches |
-| `redLadySleepoverUUID`, `seerReveal*` | own, by role | no `isAlive` gate |
-| `cupidSelectedLovers` | everyone | B47 |
-| `cupidFirst/SecondLover*` | cupid + lovers | ok |
+| all | `gameId`, `playerUUID`, `phase`, `activeNightRole`, `players[]`, `lynchDone`, `sheriffElectionDone`, `winningTeam`, `nominationsFinished`, `voteProgress`, `votedOutUUID`, `voteResults` | `activeNightRole` reveals that a role exists; `voteResults` is the full ballot once resolved, including dead voters |
+| own | `displayName`, `isManager`, `role`, `lovePartnerUUID`, `lovePartnerConfirmed`, `readyForNight`, `myVoteTargetUUID`, `myNominationUUID`, `witchUsedHealingPotion`, `witchUsedKillingPotion`, `redLadySleepoverUUID`, `seerRevealUUID`, `seerRevealRole` | `witchUsed*Potion` reads `false` for non-witches; `redLadySleepoverUUID` and `seerReveal*` have no `isAlive` gate |
+| alive werewolves | `werewolfVotes` | correctly gated |
+| alive werewolves + witch | `werewolfVictim` | correctly gated |
+| cupid + lovers | `cupidFirstLoverUUID`, `cupidSecondLoverUUID`, `cupidFirstLoverConfirmed`, `cupidSecondLoverConfirmed` | correctly gated |
+| everyone | `cupidSelectedLovers` | B47: leaks that a Cupid exists and has picked |
+| all | `players[].role` | non-null on death (B42) |
 
 ## Test-suite notes
 

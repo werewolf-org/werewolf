@@ -656,7 +656,7 @@ describe('full game flow', () => {
         eachSnapshot(game.clients, (s) => s.phase === Phase.GAME_OVER, (s, where) => {
             expect(s.winningTeam, where).toBe('werewolves');
         });
-        eachSnapshot(game.clients, (s) => s.winningTeam !== null && s.winningTeam !== '', (s, where) => {
+        eachSnapshot(game.clients, (s) => s.winningTeam !== null, (s, where) => {
             expect(s.phase, where).toBe(Phase.GAME_OVER);
         });
 

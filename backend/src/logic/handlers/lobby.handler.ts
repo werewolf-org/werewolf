@@ -60,7 +60,7 @@ export const LobbyHander = {
             sheriffElectionDone: false,
             lynchDone: false,
             lastVotedOutUUID: null,
-            winningTeam: "",
+            winningTeam: null,
             createdAt: Date.now(),
         }
         return newGame;

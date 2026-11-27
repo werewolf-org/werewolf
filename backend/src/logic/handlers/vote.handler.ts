@@ -2,6 +2,7 @@ import { Phase } from "@shared/phases.js";
 import type { Game, Player } from "../../models.js";
 import { getActingPlayers, getNominatedPlayers, getVotingWinner, isNominationsFinished, isVoteCast, isVotingComplete } from "../selectors/vote.selectors.js";
 import { getNextToWakeUp } from "../selectors/night.selectors.js";
+import { resolveDeaths } from "../rules/deaths.js";
 import { logEvent } from "../../debug/log.js";
 
 // Socket payloads are untyped and socket.io drops keys with an `undefined` value.
@@ -28,18 +29,12 @@ const assertLivingTarget = (game: Game, targetUUID: string | false, action: stri
 }
 
 const resolveLynchVoting = (game: Game): void => {
-    const electedPlayer = getVotingWinner(game); 
-    if(electedPlayer) {
-        electedPlayer.isAlive = false;
-        // check couple dying
-        if(electedPlayer.lovePartner) {
-            const lovePartner = game.players.find(p => p.playerUUID === electedPlayer.lovePartner);
-            if(!lovePartner) throw new Error(`Player with ${electedPlayer.lovePartner} does not exist, cannot be a love partner`);
-            lovePartner.isAlive = false;
-        }
-    }
-    lynchDone(game, electedPlayer?.playerUUID ?? null);
-    handleSheriffDeath(game);
+    const electedPlayer = getVotingWinner(game);
+    const electedUUID = electedPlayer?.playerUUID ?? null;
+    // resolveDeaths also clears the badge when the sheriff is among the dead. With no
+    // elected player it still clears a badge left on a corpse, matching the old path.
+    resolveDeaths(game, electedUUID ? [electedUUID] : []);
+    lynchDone(game, electedUUID);
 }
 
 const lynchDone = (game: Game, lastVotedOutUUID: string | null): void => {
@@ -81,18 +76,6 @@ const resolveEmptyNominations = (game: Game): boolean => {
     if(!isNominationsFinished(game) || getNominatedPlayers(game).length > 0) return false;
     lynchDone(game, null);
     return true;
-}
-
-// Sheriff badge rule: the badge never stays with a corpse.
-// If the sheriff died, the badge is cleared and the village plays on without one
-// (no tie-break, so a tied lynch means nobody is lynched).
-// Call this after any death resolution, e.g. from the night-death path in night.handler.ts.
-export const handleSheriffDeath = (game: Game): void => {
-    if(!game.sheriffUUID) return;
-    const sheriff = game.players.find((p) => p.playerUUID === game.sheriffUUID);
-    if(sheriff?.isAlive) return;
-    logEvent("info", "sheriff.cleared", { game: game.gameId, sheriff: sheriff?.displayName ?? game.sheriffUUID });
-    game.sheriffUUID = null;
 }
 
 const acceptSheriffResult = (game: Game): void => {

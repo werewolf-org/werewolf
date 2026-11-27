@@ -1,5 +1,6 @@
 import { Role } from '@shared/roles.js'
 import { Phase } from '@shared/phases.js';
+import type { WinningTeam } from '@shared/snapshot.js';
 
 export interface Player {
     // general
@@ -28,7 +29,7 @@ export interface Game {
     round: number,
     phase: Phase,
     activeNightRole: Role | null,
-    winningTeam: string | null,
+    winningTeam: WinningTeam | null,
 
     sheriffUUID: string | null,
     lynchDone: boolean,
