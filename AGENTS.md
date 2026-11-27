@@ -88,6 +88,41 @@ Events handled include:
 ## Data Storage (`backend/src/store/`)
 - **`game.store.ts`**: Singleton in-memory database (`Map<string, Game>`).
 
+## Debugging & Observability (`backend/src/debug/`)
+
+There is no database, so a live failure used to leave nothing behind. Three layers replace
+that (full runbook: `DEBUGGING.md`):
+
+- **`log.ts`**: one-line JSON to stdout for every action, rejection, state change, socket
+  lifecycle event and error. stdout survives the process, so it is the only post-crash
+  record. Every line carries a `run` id (per boot) and the `game` id.
+- **`journal.ts`**: a bounded, per-game ring buffer holding the same events plus the full
+  `Game` after each mutation, and a text renderer that resolves UUIDs to names. Served by
+  **`http.ts`** at `/debug/game/:id` (and `/debug`, `/debug/games`), token-gated by
+  `DEBUG_TOKEN`. **Fail closed**: without the env var the routes 404 like any unknown path.
+- **`install.ts`**: `uncaughtException`, `unhandledRejection` and `SIGTERM` write structured
+  evidence and the full transcript of every live game synchronously, then exit. Installed
+  from `index.ts` only, never from `server.ts`, so tests do not inherit global handlers.
+- **Frontend `src/debug-report.ts`**: a GM-only "Copy debug report" button. It snapshots the
+  last socket events and `syncState` patches of that phone, including raw (pre-humanised)
+  errors. This is the half the server cannot see.
+
+Rules when adding code:
+
+1. Register socket events through `withError('<eventName>', ...)` in `socket.routes.ts`.
+   That wrapper journals the action **before** the handler runs, then records the outcome
+   and the real error message. A new event registered any other way is invisible to the
+   black box.
+2. Mutate the game through a handler and let `broadcastStateAndStore` run; that is what
+   records the state snapshot. A mutation that never broadcasts never appears.
+3. Log with `logEvent(...)` from `debug/log.ts`, always with the `game` id. No `console.log`
+   in backend production code.
+4. The journal only starts for games that exist (`GameManager.knowsGame`). Do not create a
+   journal from an unvalidated payload game id: any client could grow memory by inventing
+   codes.
+5. A dump reveals every role and ballot by design. Never expose it to a socket, a non-GM
+   snapshot, or an unauthenticated route.
+
 ## Tests (`backend/src/__tests__/`)
 The backend has comprehensive unit tests for all core logic, written with **Vitest**. Test files are in `backend/src/__tests__/`. When writing new code, please make sure to add test functions.
 
@@ -193,6 +228,8 @@ audio pacing or real device behaviour.
 | `game.manager.test.ts` | 17 | Manager authority, join/rejoin/disconnect, dead players, `managerAdvance` |
 | `socket-seats.test.ts` | 7 | Several sockets on one seat: fan-out to all, acting from either, promotion on disconnect, last close clears the seat, GM rights on every tab, moving a socket between games |
 | `sync.provider.test.ts` | 24 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info, `hasVoted` public while the ballot stays private |
+| `debug.journal.test.ts` | 14 | Sequence numbers, state dedupe, rejected/in-flight annotations, event and byte budgets, name/role/death rendering, `since`, staleness, change descriptions |
+| `debug.http.test.ts` | 11 | Token gate (404 when unset, 401 when wrong), landing page, text and JSON dumps, `since`, unknown game, invalid input, GET-only, download header |
 | `scenarios.test.ts` | 20 | **Full game simulations**: multi-round games, couple wins, all-abstain, witch dual potion, sheriff tie-breaker, red lady death, dead-lock scenarios |
 | `e2e/smoke.test.ts` | 2 | The harness itself: lobby to first night, per-player snapshots |
 | `e2e/game-flow.test.ts` | 11 | Complete nights (heal, poison, red lady), sheriff election, full day, all three win conditions, sheriff death badge clear, dead-GM election exit |
@@ -205,8 +242,9 @@ audio pacing or real device behaviour.
 | `e2e/roles-and-night.test.ts` | 27 | Composition extremes (1–3 wolves, no cupid/witch, all five wakers), night-order integrity, cupid/witch/seer/red-lady edges, three rounds of persistence |
 | `e2e/protocol.test.ts` | 23 | Malformed payloads per event, unknown events, replay, concurrent emits, multi-game isolation, socket churn, name/ID validation |
 | `e2e/fuzz.test.ts` | 2 | Seeded random full games: 3 per run by default, invariant checking after every sync, hard-branch coverage report |
+| `e2e/debug.test.ts` | 4 | A real rejection appears in the dump with its real error, the dump's role table matches the deal, transcript rendering, token privacy, the post-restart 404 hint |
 
-Browser suite (`e2e/specs/`, Playwright, ~3.5 min, 75 tests):
+Browser suite (`e2e/specs/`, Playwright, ~3 min, 76 tests):
 
 | File | Tests | Coverage |
 |---|---|---|
@@ -223,8 +261,9 @@ Browser suite (`e2e/specs/`, Playwright, ~3.5 min, 75 tests):
 | `live-sync.spec.ts` | 4 | Two live tabs on one seat follow the game (websocket-instrumented, no reload), resume re-announces and catches up, a rejection shows the toast instead of a dialog, a second tab does not steal the role chip |
 | `nominations.spec.ts` | 2 | One list of every living player and a separate "No nomination" button, a second nomination is legal and labelled, progress names the undecided players, all-pass ends the day without a trial |
 | `vote-progress.spec.ts` | 1 | The trial names who is still deciding, "you" when the phone holding it is the blocker, the names shrink as ballots land, and an abstain counts as decided |
+| `debug-report.spec.ts` | 1 | The GM copies a client report containing the game, the current role, the socket lifecycle and the `syncState` history; a normal phone has no such button |
 
-**Totals: 434 backend tests (299 unit + 135 socket e2e, 22 files) and 75 browser tests.**
+**Totals: 463 backend tests (324 unit + 139 socket e2e, 25 files) and 76 browser tests.**
 
 
 ### Test Helpers
@@ -266,6 +305,7 @@ The game follows a strict phase sequence:
 - **No werewolf/villager parity win condition.** The game only ends when all wolves are dead, only wolves are alive, or only the loving couple is alive. A village that is outnumbered keeps playing.
 - **The game manager is the only escape hatch.** When a phase is stuck (a player went AFK), the GM advances it explicitly; there is no timeout and a disconnected player is not removed from the game, only from the socket mapping.
 - **Some roles are narrator-mediated, not app-driven.** The Little Girl has `wakesUp: false` and no handler because her peek happens physically around the table, narrated by the game master. Do not add a night UI for her without asking; the same will apply to any future role whose ability is someone's word rather than a screen.
+- **The debug journal is not persistence.** It lives in memory and dies with the process. `/debug/game/:id` therefore only covers the current instance; after a restart the only record is the stdout log (which does contain every action and rejection). Do not mistake a dump for a way to resume a game, and do not add a database for logging without deciding separately whether the game state itself should become persistent.
 
 
 # Frontend Architecture

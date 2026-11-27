@@ -66,8 +66,9 @@ export class SocketService {
 
     // --- Error Handling ---
 
+    // The caller (socket.routes) has already written the structured rejection line, so
+    // this stays a pure delivery method: one event, one log line.
     public notifyError(socketId: string, message: string) {
-        console.error(`ERROR on socket ${socketId}: ${message}`);
         this.emitToPlayer(socketId, 'error', { message });
     }
 }

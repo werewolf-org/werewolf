@@ -2,6 +2,7 @@ import { Phase } from "@shared/phases.js";
 import type { Game, Player } from "../../models.js";
 import { getActingPlayers, getNominatedPlayers, getVotingWinner, isNominationsFinished, isVoteCast, isVotingComplete } from "../selectors/vote.selectors.js";
 import { getNextToWakeUp } from "../selectors/night.selectors.js";
+import { logEvent } from "../../debug/log.js";
 
 // Socket payloads are untyped and socket.io drops keys with an `undefined` value.
 // Normalise every payload to the two states the game understands: a target UUID or an explicit abstain (false).
@@ -44,7 +45,8 @@ const resolveLynchVoting = (game: Game): void => {
 const lynchDone = (game: Game, lastVotedOutUUID: string | null): void => {
     game.lynchDone = true;
     game.lastVotedOutUUID = lastVotedOutUUID;
-    console.log(`Voting Resolved in Game ${game.gameId}. Player voted out: ${lastVotedOutUUID}`)
+    const votedOut = game.players.find((p) => p.playerUUID === lastVotedOutUUID);
+    logEvent("info", "vote.resolved", { game: game.gameId, votedOut: votedOut?.displayName ?? lastVotedOutUUID });
 }
 
 const startNight = (game: Game): void => {
@@ -68,7 +70,7 @@ const resolveSheriffVoting = (game: Game): void  => {
     const electedPlayer = getVotingWinner(game); 
     if(electedPlayer) game.sheriffUUID = electedPlayer.playerUUID;
     game.sheriffElectionDone = true;
-    console.log(`Sheriff Voting Resolved in Game ${game.gameId}. New sheriff: ${electedPlayer?.playerUUID}`)
+    logEvent("info", "sheriff.resolved", { game: game.gameId, sheriff: electedPlayer?.displayName ?? null });
 }
 
 // Nomination round resolution: once every living player has nominated and nobody was nominated,
@@ -89,7 +91,7 @@ export const handleSheriffDeath = (game: Game): void => {
     if(!game.sheriffUUID) return;
     const sheriff = game.players.find((p) => p.playerUUID === game.sheriffUUID);
     if(sheriff?.isAlive) return;
-    console.log(`Sheriff ${game.sheriffUUID} died in Game ${game.gameId}. Badge cleared.`)
+    logEvent("info", "sheriff.cleared", { game: game.gameId, sheriff: sheriff?.displayName ?? game.sheriffUUID });
     game.sheriffUUID = null;
 }
 

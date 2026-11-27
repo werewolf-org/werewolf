@@ -3,6 +3,8 @@ import type { Server as HttpServer } from 'http';
 import { Server } from 'socket.io';
 import { socketService } from './socket.service.js';
 import { registerSocketEvents } from './socket.routes.js';
+import { serveDebugRequest } from './debug/http.js';
+import { logEvent } from './debug/log.js';
 
 // Extracted from index.ts so tests can start a real server on an ephemeral port.
 // index.ts stays a thin script; everything that decides behaviour lives here.
@@ -19,6 +21,8 @@ export async function startGameServer(port: number = 0): Promise<GameServerHandl
     const origins = process.env.ORIGIN === undefined ? [] : process.env.ORIGIN.split(' ');
 
     const httpServer = createServer((req, res) => {
+        // Token-gated and off by default; returns false for anything that is not /debug.
+        if (serveDebugRequest(req, res)) return;
         if (req.url === '/') {
             res.writeHead(200, { 'Content-Type': 'text/plain' });
             res.end('Werwolf Backend is running (with WebSockets)!');
@@ -38,6 +42,16 @@ export async function startGameServer(port: number = 0): Promise<GameServerHandl
         // to ~45s before the client even tries to reconnect.
         pingInterval: 10_000,
         pingTimeout: 10_000
+    });
+
+    // A rejected upgrade (wrong origin, proxy problem) is otherwise invisible: the phones
+    // just never connect. Log the engine-level reason once, not per client.
+    io.engine.on('connection_error', (error) => {
+        logEvent('warn', 'socket.connection_error', {
+            code: error.code,
+            message: error.message,
+            context: error.context,
+        });
     });
 
     socketService.init(io);

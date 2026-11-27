@@ -4,6 +4,7 @@ import type { Game, Player } from "../../models.js";
 import { Role, ROLES } from "@shared/roles.js";
 import { getNextToWakeUp } from "../selectors/night.selectors.js";
 import { GameStore } from "../../store/game.store.js";
+import { logEvent } from "../../debug/log.js";
 
 // Minimum number of players required to leave the lobby.
 // 4 = one werewolf + three villagers is the smallest setup where the village has a
@@ -100,7 +101,7 @@ export const LobbyHander = {
         // unnamed players), anything that is not a string is not.
         if(typeof newName !== 'string') throw new Error(`Name must be a string, got ${typeof newName}`);
         player.displayName = newName.trim().slice(0, MAX_NAME_LENGTH);
-        console.log(`Player ${player.playerUUID} changed name to ${player.displayName}`)
+        logEvent("info", "player.renamed", { game: game.gameId, player: player.playerUUID, name: player.displayName });
     },
     closeJoining(game: Game): void {
         if(game.phase !== Phase.LOBBY) throw new Error(`Game ${game.gameId} is already in progress, so joining cannot be closed.`);
@@ -159,7 +160,7 @@ export const LobbyHander = {
         });
 
         game.phase = Phase.DISTRIBUTION;
-        console.log(`Roles distributed for game ${game.gameId}`);
+        logEvent("info", "roles.distributed", { game: game.gameId, players: game.players.length, composition: roles });
     },
     // when gm starts game
     startGame(game: Game): void {
@@ -171,7 +172,7 @@ export const LobbyHander = {
 
         game.phase = Phase.NIGHT;
         game.activeNightRole = firstNightRole;
-        console.log(`Game ${game.gameId} started...`)
+        logEvent("info", "game.started", { game: game.gameId, firstRole: firstNightRole });
     }
 
 }

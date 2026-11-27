@@ -13,6 +13,7 @@ import { DayPhase } from './phases/day';
 import { SheriffElectionPhase } from './phases/sheriff-election';
 import { GameOverPhase } from './phases/game-over';
 import { ROLES, Role } from '@shared/roles.js';
+import { copyDebugReport, recordClientEvent } from '../debug-report';
 
 export class GamePage extends View {
     private gameId: string;
@@ -33,6 +34,10 @@ export class GamePage extends View {
     private connectionBanner: HTMLElement | null = null;
     private roleChip: HTMLElement | null = null;
     private roleChipName: HTMLElement | null = null;
+
+    // GM-only client black box
+    private debugReportView: HTMLElement | null = null;
+    private debugReportBtn: HTMLButtonElement | null = null;
 
     // Non-blocking feedback for a rejected action
     private toastEl: HTMLElement | null = null;
@@ -65,6 +70,12 @@ export class GamePage extends View {
         this.advanceConfirmEl = document.getElementById('manager-advance-confirm');
         this.advanceConfirmBtn = document.getElementById('manager-advance-confirm-btn') as HTMLButtonElement | null;
         this.advanceCancelBtn = document.getElementById('manager-advance-cancel-btn') as HTMLButtonElement | null;
+
+        this.debugReportView = document.getElementById('debug-report-view');
+        this.debugReportBtn = document.getElementById('copy-debug-report-btn') as HTMLButtonElement | null;
+        if (this.debugReportBtn) {
+            this.debugReportBtn.addEventListener('click', () => void this.handleCopyDebugReport());
+        }
 
         if (this.advanceBtn) {
             this.advanceBtn.addEventListener('click', () => this.armAdvance());
@@ -105,6 +116,7 @@ export class GamePage extends View {
         socketService.joinGame(this.gameId, playerUUID);
 
         console.log(`GamePage mounted for ${this.gameId}`);
+        recordClientEvent('game.page_mounted', { gameId: this.gameId, playerUUID });
 
         subscribeSelector(this, s => s.phase, (phase) => {
             if (phase) this.renderPhase(phase);
@@ -142,6 +154,12 @@ export class GamePage extends View {
             s.lynchDone,
             s.sheriffElectionDone,
         ].join('|'), () => this.updateManagerAdvance());
+
+        // The debug report is for the operator, and it contains this phone's private state.
+        // Everyone else gets no button, so nobody hands over a report without meaning to.
+        subscribeSelector(this, s => s.isManager, (isManager) => {
+            if (this.debugReportView) this.debugReportView.style.display = isManager ? 'block' : 'none';
+        });
 
         // Connection banner + persistent role chip. Both used to be missing: a lost socket
         // looked like "nobody has acted yet", and a player who was offline during the role
@@ -187,6 +205,7 @@ export class GamePage extends View {
 
     private showToast(message: string): void {
         if (!this.toastEl || !this.toastMessageEl) return;
+        recordClientEvent('ui.toast', { message });
         this.toastMessageEl.textContent = message;
         this.toastEl.style.display = 'block';
         if (this.toastTimer !== null) window.clearTimeout(this.toastTimer);
@@ -194,6 +213,18 @@ export class GamePage extends View {
             this.toastTimer = null;
             if (this.toastEl) this.toastEl.style.display = 'none';
         }, 4000);
+    }
+
+    private async handleCopyDebugReport(): Promise<void> {
+        if (this.debugReportBtn) this.debugReportBtn.disabled = true;
+        try {
+            const copied = await copyDebugReport();
+            this.showToast(copied
+                ? 'Debug report copied. Paste it into the chat.'
+                : 'Could not copy the report.');
+        } finally {
+            if (this.debugReportBtn) this.debugReportBtn.disabled = false;
+        }
     }
 
     private updateStatusStrip(): void {

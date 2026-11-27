@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { getState, resetState, setState, storePlayerUUID, type LocalAppState } from './store';
 import { navigate } from './router';
+import { recordClientEvent } from './debug-report';
 
 // A rejected action is read by a human on a phone. Backend messages are being rewritten to
 // plain sentences, but any that still carry internal ids (UUIDs, field names) must not reach
@@ -167,6 +168,7 @@ class SocketService {
 
         this.socket.on('connect', () => {
             console.log('Socket connected:', this.socket?.id);
+            recordClientEvent('socket.connect', { socketId: this.socket?.id ?? null });
 
             // Every (re)connect gets a fresh socket.id while the server still maps our
             // seat to the previous one. Re-announce ourselves before anything else
@@ -176,13 +178,15 @@ class SocketService {
             setState({ isConnected: true, connectionError: null });
         });
 
-        this.socket.on('disconnect', () => {
+        this.socket.on('disconnect', (reason) => {
             console.log('Socket disconnected');
+            recordClientEvent('socket.disconnect', { reason });
             setState({ isConnected: false });
         });
 
         this.socket.on('connect_error', (err: Error) => {
             console.error('Socket connection error:', err.message);
+            recordClientEvent('socket.connect_error', { message: err.message });
             setState({
                 connectionError: `Cannot reach the game server (${err.message}). Retrying...`,
             });
@@ -190,6 +194,9 @@ class SocketService {
 
         this.socket.on('error', (data: { message: string }) => {
             console.error('Socket Error:', data.message);
+            // The raw message is kept in the report on purpose: toHumanError replaces ids
+            // with a friendly sentence, and the id is what a later diagnosis needs.
+            recordClientEvent('socket.error', { raw: data.message, shown: toHumanError(data.message) });
             // Non-blocking: the game page renders this as a toast. alert() freezes the
             // page's timers, so a rejected action could stop the socket from answering
             // its ping and take the whole connection down with it.
@@ -198,6 +205,7 @@ class SocketService {
 
         // --- Game Lifecycle Events ---
         this.socket.on('gameCreated', (data: { gameId: string }) => {
+            recordClientEvent('game.created', data);
             setState({gameId: data.gameId});
             navigate(`#/game/${data.gameId}`);
         });
@@ -207,6 +215,7 @@ class SocketService {
             // offered to a different game.
             storePlayerUUID(data.gameId, data.playerUUID);
             console.log('joined game with id: ', data.playerUUID);
+            recordClientEvent('game.joined', data);
             resetState();
             // resetState() clears the per-game mirror; remember which game we belong to
             // so a reconnect can re-emit joinGame before the next snapshot arrives.
@@ -215,6 +224,9 @@ class SocketService {
 
         this.socket.on('syncState', (data: Partial<LocalAppState> ) => {
             console.log('syncState, patch: ', data);
+            // Every snapshot, not a summary: a wrong screen is a story about the order the
+            // patches arrived in, and that cannot be reconstructed from the last one.
+            recordClientEvent('socket.syncState', data);
             // A snapshot means the join/action that preceded it worked.
             setState({ ...data, lastError: null });
         })

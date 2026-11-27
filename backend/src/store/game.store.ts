@@ -1,4 +1,5 @@
 import type { Game } from "../models.js";
+import { logEvent } from "../debug/log.js";
 
 export class GameStore {
     private static instance: GameStore;
@@ -35,7 +36,7 @@ export class GameStore {
         const now = Date.now();
         for (const [gameId, game] of this.games.entries()) {
             if (now - game.createdAt > maxAgeMs) {
-                console.log(`Cleaning up old game: ${gameId}`);
+                logEvent("info", "game.cleaned", { game: gameId, ageMs: now - game.createdAt });
                 this.games.delete(gameId);
             }
         }

@@ -181,6 +181,30 @@ secret, the choice is.
 - Deliberately accepted: naming the waiters is social pressure. That is the point of a shared clock,
   and the nomination stage already behaved that way, so the two stages now match.
 
+**R12 [OPS, fixed] A live failure left no record.**
+The game lives in memory on one Render instance, and the only output was a handful of
+unstructured `console.log` lines. After a crash, a redeploy, or a phone showing the wrong
+screen, there was nothing to reconstruct: no action log, no rejected error, no state.
+
+- Every inbound socket event is now journaled before its handler runs and logged as one
+  JSON line to stdout, with the game id, the seat, the phase and the payload. A rejection
+  adds a second line with the real server error. stdout survives the process, which is the
+  only thing that survives a crash.
+- The per-game journal also stores the full `Game` after every mutation, so a dump answers
+  "what did the table look like when this went wrong" and not just "which call failed".
+  `/debug/game/:id` serves it as a name-resolved transcript or JSON, gated by `DEBUG_TOKEN`
+  and disabled (404) when the token is unset.
+- `uncaughtException`, `unhandledRejection` and `SIGTERM` flush a transcript of every live
+  game to stdout before exiting, so a deploy or a crash still leaves the last state behind.
+- The GM's phone has a "Copy debug report" button for the client half: recent patches, raw
+  errors before `toHumanError`, and browser exceptions.
+- Guards: `debug.journal.test.ts` (budgets, dedupe, rendering), `debug.http.test.ts` (token
+  gate, formats, `since`), `e2e/debug.test.ts` (a real rejection in a real game),
+  `debug-report.spec.ts` (the GM button; no button for anyone else).
+- Accepted limit, documented in `DEBUGGING.md`: this is forensics, not persistence. A
+  restart still drops the game, and the journal dies with the process; only the stdout
+  lines remain. Recovery would need a store, which is a separate decision.
+
 **Observations, deliberately not changed:**
 - The red lady's `#red-lady-waiting-message` never renders: `handleSleepover` advances the turn immediately,
   so she goes straight to the sleep view and learns the outcome at dawn.

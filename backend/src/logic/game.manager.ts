@@ -8,6 +8,8 @@ import { socketService } from "../socket.service.js";
 import { getLocalPlayerState } from "./communication/sync.provider.js";
 import { checkPlayerNightRole } from "./selectors/night.selectors.js";
 import { LobbyHander } from "./handlers/lobby.handler.js";
+import { journal } from "../debug/journal.js";
+import { logEvent, serializeError } from "../debug/log.js";
 
 export class GameManager {
     private store = GameStore.getInstance();
@@ -86,6 +88,17 @@ export class GameManager {
         return game;
     }
 
+    /** Whether a game exists at all. Used to avoid journaling fuzzed/unknown ids. */
+    knowsGame(gameId: string): boolean {
+        return this.store.hasGame(gameId);
+    }
+
+    /** Which seat a socket currently holds, for the debug record. */
+    describeSocket(socketId: string): { gameId: string; playerUUID: string } | null {
+        const seat = this.socketSeats.get(socketId);
+        return seat ? { gameId: seat.gameId, playerUUID: seat.playerUUID } : null;
+    }
+
     private getPlayerBySocketId(game: Game, socketId: string): Player {
         // The socket -> seat map is authoritative and can point at a seat whose "primary"
         // socketId is a different (newer) socket.
@@ -112,6 +125,10 @@ export class GameManager {
         // The store holds the Game by reference, so persisting first is about isolating
         // a throwing selector: one bad snapshot must not desync everyone after it.
         this.store.updateGame(game);
+        // One journal entry per state version, with the full table frozen at this moment.
+        // It runs before the per-player snapshots on purpose: if a selector throws below,
+        // the state that caused it is already recorded.
+        journal.recordState(game);
         game.players.forEach((player) => {
             const playerUUID = player.playerUUID;
             if(!playerUUID) return;
@@ -127,7 +144,9 @@ export class GameManager {
             try {
                 snapshot = getLocalPlayerState(game, player);
             } catch (error: any) {
-                console.error(`Failed to build state for ${playerUUID} in ${game.gameId}: ${error.message}`);
+                const serialized = serializeError(error);
+                logEvent("error", "snapshot.failed", { game: game.gameId, player: playerUUID, ...serialized });
+                journal.getOrCreate(game.gameId).note("snapshot.failed", null, { player: playerUUID, error: serialized.message });
                 return;
             }
 
@@ -135,7 +154,9 @@ export class GameManager {
                 try {
                     socketService.syncState(socketId, snapshot);
                 } catch (error: any) {
-                    console.error(`Failed to sync state to ${socketId} (${playerUUID}) in ${game.gameId}: ${error.message}`);
+                    const serialized = serializeError(error);
+                    logEvent("error", "snapshot.sync_failed", { game: game.gameId, player: playerUUID, socket: socketId, ...serialized });
+                    journal.getOrCreate(game.gameId).note("snapshot.sync_failed", null, { player: playerUUID, socket: socketId, error: serialized.message });
                 }
             });
         });
@@ -157,9 +178,13 @@ export class GameManager {
         // A connected socket that never joined (or only created the game) has no seat.
         if(!released) return;
 
-        this.broadcastStateAndStore(game);
         const playerUUID = released.player?.playerUUID ?? released.seat.playerUUID;
-        console.log(`Player ${playerUUID} disconnected from ${targetGameId}, seat kept for rejoin`);
+        // Naming how many sockets still hold the seat is what makes a reconnect bug
+        // readable: "online elsewhere" and "entirely offline" look identical in the state.
+        const remaining = this.socketsFor(released.seat.gameId, released.seat.playerUUID).length;
+        const label = remaining > 0 ? `disconnect (${remaining} still bound)` : 'disconnect (seat offline)';
+        journal.recordSocket(targetGameId, label, socketId, playerUUID);
+        this.broadcastStateAndStore(game);
     }
 
     // TODO: outsource to other file
@@ -195,12 +220,13 @@ export class GameManager {
 
     createGame(socketId: string): void {
         this.store.cleanupOldGames(); // clean up inactive games (default 24h)
+        journal.prune();
         const newGame = LobbyHander.createGame();
         socketService.notifyGameCreated(socketId, newGame.gameId);
         this.store.createGame(newGame);
+        journal.noteGameCreated(newGame);
         this.socketGames.set(socketId, newGame.gameId);
         socketService.joinRoom(socketId, newGame.gameId);
-        console.log(`Game ${newGame.gameId} was created`);
     }
 
     joinGame(socketId: string, gameId: string, playerUUID: string | null): void {
@@ -240,8 +266,8 @@ export class GameManager {
         this.bindSocketToSeat(game.gameId, playerUUID, socketId);
         this.socketGames.set(socketId, game.gameId);
         socketService.joinRoom(socketId, game.gameId);
+        journal.recordSocket(game.gameId, 'join', socketId, playerUUID);
         this.broadcastStateAndStore(game);
-        console.log(`Player ${playerUUID} joined game ${gameId}`);
     }
 
     changeName(gameId: string, socketId: string, newName: string): void {
