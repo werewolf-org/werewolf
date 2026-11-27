@@ -9,7 +9,6 @@ import { nameList, readyNamesText, waitingNamesText } from '../../vote-status';
 export class DayPhase extends View {
     private selectedNominationUUID: string | false | null = null;
     private selectedTargetUUID: string | false | null = null;
-    private lockedActions = new Set<string>();
     // Stage narration is one-shot per mount: the subscriptions below are invoked
     // immediately at subscribe time and again on every change, so without these
     // flags a re-render (or a mount mid-stage) would restart the line.
@@ -92,21 +91,6 @@ export class DayPhase extends View {
                 socketService.readyForNight();
             });
         }
-    }
-
-    // Disable an action button on the first tap so a double tap cannot emit twice.
-    // A successful action answers with a fresh snapshot; if nothing changed within
-    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
-    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
-        if (this.lockedActions.has(key)) return false;
-        this.lockedActions.add(key);
-        if (btn) btn.disabled = true;
-        window.setTimeout(() => {
-            if (!stillPending()) return;
-            this.lockedActions.delete(key);
-            if (btn) btn.disabled = false;
-        }, 3000);
-        return true;
     }
 
     // A stage action counts as decided for both a name and an explicit "nobody".
@@ -214,7 +198,7 @@ export class DayPhase extends View {
         const others = selectedPlayer ? this.nominatorsOf(selectedPlayer.playerUUID) : [];
         // An in-flight nomination must stay visibly disabled: every snapshot re-renders this
         // button, so the lock has to be part of the render, not just of the click handler.
-        const locked = this.lockedActions.has('nominate');
+        const locked = this.isActionLocked('nominate');
 
         if (noBtn) {
             noBtn.classList.toggle('selected', selection === false);
@@ -325,7 +309,7 @@ export class DayPhase extends View {
             confirmBtn.innerText = selection === false
                 ? 'Abstain'
                 : target ? `Vote to lynch ${target.displayName}` : 'Vote to Lynch';
-            confirmBtn.disabled = this.lockedActions.has('vote') || selection === null;
+            confirmBtn.disabled = this.isActionLocked('vote') || selection === null;
         }
 
         if (isDead) {

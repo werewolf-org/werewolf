@@ -335,6 +335,7 @@ The frontend is built without a heavy framework (like React or Vue), relying on 
     - `unmount()`: Called when the view is replaced. It automatically cleans up all store subscriptions.
 - **Subscription Management**: Views use `subscribeSelector(this, selector, callback)` to register listeners. The store automatically adds these to the `View`'s internal unsubscription list. This prevents "ghost" updates from old rounds or destroyed components by ensuring all listeners are killed during `unmount()`.
 - **Self-Updating**: Views are reactive. They mount once and listen to the store, mapping the current state to HTML whenever a relevant change occurs.
+- **Action Guard**: `View.lockAction(key, button, stillPending)` owns the double-tap guard: it disables the button on the first tap and re-arms after 3 seconds only if the action produced no new snapshot. `View.isActionLocked(key)` is what a render reads to keep a button disabled. Views do not keep their own lock sets, and `unmount()` clears any pending timers.
 
 ### 3. Routing (`src/router.ts`)
 - A simple Hash-based router (`#/`, `#/game/:id`).
@@ -347,7 +348,7 @@ The frontend is built without a heavy framework (like React or Vue), relying on 
 
 ## Folder Structure (`frontend/src/`)
 - **`router.ts`**: Navigation logic.
-- **`base-view.ts`**: The abstract `View` class and lifecycle definitions.
+- **`base-view.ts`**: The abstract `View` class, lifecycle definitions and the shared double-tap action guard.
 - **`store.ts`**: Global state.
 - **`socket.service.ts`**: WebSocket communication.
 - **`audio.service.ts`**: Sound and narration management.

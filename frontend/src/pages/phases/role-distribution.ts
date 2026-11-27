@@ -7,7 +7,6 @@ import { View } from '../../base-view';
 import { Phase } from '@shared/phases';
 
 export class RoleDistributionPhase extends View {
-    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -45,7 +44,7 @@ export class RoleDistributionPhase extends View {
             const startBtn = document.getElementById('start-actual-game-btn') as HTMLButtonElement | null;
             if (startBtn) {
                 startBtn.addEventListener('click', () => {
-                    if (!this.lockAction(startBtn, () => getState().phase === Phase.DISTRIBUTION)) return;
+                    if (!this.lockAction('start', startBtn, () => getState().phase === Phase.DISTRIBUTION)) return;
                     socketService.startGame();
                 });
             }
@@ -55,18 +54,4 @@ export class RoleDistributionPhase extends View {
         }
     }
 
-    // Disable the GM button on the first tap so a double tap cannot start twice.
-    // A successful action answers with a fresh snapshot; if nothing changed within
-    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
-    private lockAction(btn: HTMLButtonElement, stillPending: () => boolean): boolean {
-        if (this.lockedActions.has('start')) return false;
-        this.lockedActions.add('start');
-        btn.disabled = true;
-        window.setTimeout(() => {
-            if (!stillPending()) return;
-            this.lockedActions.delete('start');
-            btn.disabled = false;
-        }, 3000);
-        return true;
-    }
 }

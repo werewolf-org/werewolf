@@ -7,7 +7,6 @@ import { escapeHtml } from '../../html';
 import { Phase } from '@shared/phases';
 
 export class LobbyPhase extends View {
-    private lockedActions = new Set<string>();
 
     mount(container: HTMLElement): void {
         this.container = container;
@@ -52,21 +51,6 @@ export class LobbyPhase extends View {
                 socketService.closeJoining();
             });
         }
-    }
-
-    // Disable an action button on the first tap so a double tap cannot emit twice.
-    // A successful action answers with a fresh snapshot; if nothing changed within
-    // the grace period, treat it as a rejection (the socket service alerts) and re-arm.
-    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
-        if (this.lockedActions.has(key)) return false;
-        this.lockedActions.add(key);
-        if (btn) btn.disabled = true;
-        window.setTimeout(() => {
-            if (!stillPending()) return;
-            this.lockedActions.delete(key);
-            if (btn) btn.disabled = false;
-        }, 3000);
-        return true;
     }
 
     private toggleManagerUI(isManager: boolean) {

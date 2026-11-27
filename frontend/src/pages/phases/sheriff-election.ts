@@ -13,7 +13,6 @@ import { Phase } from '@shared/phases';
 // round on top of the vote only added a second way to get stuck.
 export class SheriffElectionPhase extends View {
     private selectedVoteUUID: string | false | null = null;
-    private lockedActions = new Set<string>();
     // The result line is one-shot per mount; the subscription also fires on the
     // initial invoke and on every re-sync while the election stays done.
     private playedResultNarration = false;
@@ -67,21 +66,6 @@ export class SheriffElectionPhase extends View {
                 socketService.acceptSheriffRole();
             });
         }
-    }
-
-    // Disable an action button on the first tap so a double tap cannot emit twice.
-    // A successful action answers with a fresh snapshot; if nothing changed within
-    // the grace period, treat it as a rejection and re-arm.
-    private lockAction(key: string, btn: HTMLButtonElement | null, stillPending: () => boolean): boolean {
-        if (this.lockedActions.has(key)) return false;
-        this.lockedActions.add(key);
-        if (btn) btn.disabled = true;
-        window.setTimeout(() => {
-            if (!stillPending()) return;
-            this.lockedActions.delete(key);
-            if (btn) btn.disabled = false;
-        }, 3000);
-        return true;
     }
 
     private updateUI() {
