@@ -205,6 +205,29 @@ screen, there was nothing to reconstruct: no action log, no rejected error, no s
   restart still drops the game, and the journal dies with the process; only the stdout
   lines remain. Recovery would need a store, which is a separate decision.
 
+**R13 [UX, fixed] The day's action bar sat below the fold, and the night never said who was missing.**
+Two phone problems in the same phase.
+
+- With five or more players the roster pushed "Nominate" and "Vote to Lynch" out of the
+  viewport, so the one action a stage asks for was only reachable by scrolling first. It was
+  found in `prototype/nominations.html` and left there until it could be decided. The action
+  bar of every day stage is now sticky at the bottom of the screen (`day.html`), in the flow
+  rather than fixed, so a short stage does not leave a floating button and the page still
+  ends where it looks like it ends. The sticky bar is the prototype's candidate, folded in.
+- After the lynch, "Ready for Night" only reflected the player's own flag. A stuck table had
+  to ask around the room whose phone had not tapped, and the GM had no better view than
+  anyone else. `players[].readyForNight` is now in the tailored snapshot, the result stage
+  shows "3 of 5 ready" plus the missing names, and the local confirmation message names them
+  too. It is participation, not a choice: there is nothing to hide, and dead players see the
+  same tally (they are not asked, but they are watching).
+- Guards: `day-actions.spec.ts` asserts that the nomination, ballot and ready buttons are
+  fully inside an unscrolled phone viewport while the day screen is taller than the screen
+  (verified red with the sticky rule removed), and that the ready phone, an observer and the
+  dead phone all see the same missing names with the "you" wording where it applies;
+  `sync.provider.test.ts` pins the public flag; `e2e/voting.test.ts` pins that every client
+  sees who has confirmed and that a corpse is never counted. `waitForNight` in the browser
+  helpers now also accepts the dead player's night panel.
+
 **Observations, deliberately not changed:**
 - The red lady's `#red-lady-waiting-message` never renders: `handleSleepover` advances the turn immediately,
   so she goes straight to the sleep view and learns the outcome at dawn.

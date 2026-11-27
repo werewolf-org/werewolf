@@ -17,6 +17,7 @@ export interface SnapshotPlayer {
     role: string | null;
     nomination: string | false | null;
     hasVoted: boolean;
+    readyForNight: boolean;
 }
 
 export interface Snapshot {

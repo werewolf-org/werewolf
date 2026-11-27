@@ -30,7 +30,7 @@ The project follows a **Reactive State Machine** pattern. In this model, the Fro
 ### Core Mandates:
 1.  **State-Driven UI**: UI elements MUST NOT trigger other UI elements directly. All UI changes must be a side-effect of a state update. (e.g., A button click calls a socket action -> Socket updates the Store -> Store triggers a UI re-render).
 2.  **Unidirectional Data Flow**: Backend State -> Socket `syncState` -> Frontend Store -> UI.
-3.  **Tailored Snapshots**: Instead of granular events, the backend sends a "Tailored State Snapshot" (`syncState`) to each player. This snapshot contains only the information that specific player is allowed to see (e.g., their own role, their own potion status, and public game info). **Exception**: a dead player's `role` is public once they die (the death popup shows it), and when the phase is `GAME_OVER` all player roles and statuses are revealed to everyone for the summary screen. **Participation vs choice**: the roster carries `nomination` and `hasVoted`, so the UI can name who the table is still waiting for, while a ballot stays private (`myVoteTargetUUID`) until `voteResults` resolves the stage.
+3.  **Tailored Snapshots**: Instead of granular events, the backend sends a "Tailored State Snapshot" (`syncState`) to each player. This snapshot contains only the information that specific player is allowed to see (e.g., their own role, their own potion status, and public game info). **Exception**: a dead player's `role` is public once they die (the death popup shows it), and when the phase is `GAME_OVER` all player roles and statuses are revealed to everyone for the summary screen. **Participation vs choice**: the roster carries `nomination`, `hasVoted` and `readyForNight`, so the UI can name who the table is still waiting for, while a ballot stays private (`myVoteTargetUUID`) until `voteResults` resolves the stage.
 
 # Development Setup
 
@@ -227,7 +227,7 @@ audio pacing or real device behaviour.
 | `game.store.test.ts` | 10 | `GameStore` singleton, CRUD, `hasGame`, `cleanupOldGames` |
 | `game.manager.test.ts` | 17 | Manager authority, join/rejoin/disconnect, dead players, `managerAdvance` |
 | `socket-seats.test.ts` | 7 | Several sockets on one seat: fan-out to all, acting from either, promotion on disconnect, last close clears the seat, GM rights on every tab, moving a socket between games |
-| `sync.provider.test.ts` | 24 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info, `hasVoted` public while the ballot stays private |
+| `sync.provider.test.ts` | 25 | `getLocalPlayerState` — role hiding, vote visibility, witch info, seer reveals, cupid lover info, `hasVoted`/`readyForNight` public while the ballot stays private |
 | `debug.journal.test.ts` | 14 | Sequence numbers, state dedupe, rejected/in-flight annotations, event and byte budgets, name/role/death rendering, `since`, staleness, change descriptions |
 | `debug.http.test.ts` | 11 | Token gate (404 when unset, 401 when wrong), landing page, text and JSON dumps, `since`, unknown game, invalid input, GET-only, download header |
 | `scenarios.test.ts` | 20 | **Full game simulations**: multi-round games, couple wins, all-abstain, witch dual potion, sheriff tie-breaker, red lady death, dead-lock scenarios |
@@ -244,7 +244,7 @@ audio pacing or real device behaviour.
 | `e2e/fuzz.test.ts` | 2 | Seeded random full games: 3 per run by default, invariant checking after every sync, hard-branch coverage report |
 | `e2e/debug.test.ts` | 4 | A real rejection appears in the dump with its real error, the dump's role table matches the deal, transcript rendering, token privacy, the post-restart 404 hint |
 
-Browser suite (`e2e/specs/`, Playwright, ~3 min, 76 tests):
+Browser suite (`e2e/specs/`, Playwright, ~3 min, 78 tests):
 
 | File | Tests | Coverage |
 |---|---|---|
@@ -261,9 +261,10 @@ Browser suite (`e2e/specs/`, Playwright, ~3 min, 76 tests):
 | `live-sync.spec.ts` | 4 | Two live tabs on one seat follow the game (websocket-instrumented, no reload), resume re-announces and catches up, a rejection shows the toast instead of a dialog, a second tab does not steal the role chip |
 | `nominations.spec.ts` | 2 | One list of every living player and a separate "No nomination" button, a second nomination is legal and labelled, progress names the undecided players, all-pass ends the day without a trial |
 | `vote-progress.spec.ts` | 1 | The trial names who is still deciding, "you" when the phone holding it is the blocker, the names shrink as ballots land, and an abstain counts as decided |
+| `day-actions.spec.ts` | 2 | The nomination, ballot and ready buttons sit fully inside an unscrolled phone viewport on a day screen taller than the screen; every phone sees who has confirmed the night, including the dead and the phone that is the last one missing |
 | `debug-report.spec.ts` | 1 | The GM copies a client report containing the game, the current role, the socket lifecycle and the `syncState` history; a normal phone has no such button |
 
-**Totals: 463 backend tests (324 unit + 139 socket e2e, 25 files) and 76 browser tests.**
+**Totals: 464 backend tests (325 unit + 139 socket e2e, 25 files) and 78 browser tests.**
 
 
 ### Test Helpers
@@ -296,6 +297,7 @@ The game follows a strict phase sequence:
     - Nominations are public as they happen (`players[].nomination`) and several players may name the same person (a "second"). The trial ballot dedupes the candidates (`getNominatedPlayers`), so a candidate appears once no matter how many nominated them.
     - If nobody is nominated, the day ends without a trial and without a lynch.
     - The trial vote is simultaneous and private until it resolves (`voteResults` stays `null`), then the full breakdown is published. That visibility difference is what the two stages are for: commit in the open, then decide without seeing the room.
+    - The Results stage requires every living player to confirm (`players[].readyForNight`, public) and names the phones that have not; the stage's action bar is pinned to the bottom of the phone so the button is reachable without scrolling a long roster.
     - Lynch resolution triggers a return to **NIGHT**.
 7.  **GAME_OVER**: Win condition met.
 

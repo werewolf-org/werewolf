@@ -92,11 +92,16 @@ export async function waitUntilHidden(page: Page, selector: string, timeout = 15
     await expect.poll(async () => !(await isVisible(page, selector)), { timeout, message: `${selector} never became hidden` }).toBe(true);
 }
 
-/** Every player has reached the night phase, whichever of the two night panels they get. */
+/** Every player has reached the night phase, whichever of the night panels they get. */
 export async function waitForNight(page: Page): Promise<void> {
     await expect
         .poll(
-            async () => (await isVisible(page, '#night-action-container')) || (await isVisible(page, '#night-sleep-view')),
+            async () =>
+                (await isVisible(page, '#night-action-container')) ||
+                (await isVisible(page, '#night-sleep-view')) ||
+                // A player who died today is awake in the night but has no action: same
+                // phase, a panel of their own.
+                (await isVisible(page, '#night-dead-view')),
             { timeout: 15_000, message: 'player never reached the night phase' },
         )
         .toBe(true);

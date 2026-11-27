@@ -54,6 +54,10 @@ export const getLocalPlayerState = (game: Game, player: Player): object => {
         // without exposing a single ballot. The target stays in myVoteTargetUUID, private
         // to its owner, until voteResults resolves the stage.
         hasVoted: isVoteCast(p.voteTargetUUID),
+        // Same rule for the end of the day: "who has not confirmed the night yet" is
+        // participation, and a table that cannot name the missing phone has to ask around
+        // the room. It says nothing about what anyone chose, because there is nothing to choose.
+        readyForNight: p.readyForNight,
         role: (game.phase === Phase.GAME_OVER || !p.isAlive) ? p.role : null
     }));
 

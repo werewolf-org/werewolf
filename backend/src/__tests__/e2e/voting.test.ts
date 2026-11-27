@@ -1378,6 +1378,14 @@ describe('voting: day structure', () => {
         early.socket.emit('readyForNight', { gameId: t.gameId });
         await early.waitFor((s) => s.readyForNight, 'the confirm after the lynch');
 
+        // The confirmation is public participation: another phone can name the one that
+        // already tapped, without being told anything about what anyone chose.
+        const watcher = livingClients(t).find((c) => c !== early)!;
+        await watcher.waitFor(
+            (s) => s.players.find((p) => p.playerUUID === early.playerUUID)?.readyForNight === true,
+            'the ready flag is public',
+        );
+
         await readyEveryone(t);
         for (const client of t.clients) {
             expect(client.state!.phase).toBe(Phase.NIGHT);
@@ -1437,6 +1445,29 @@ describe('voting: day structure', () => {
             expect(client.state!.phase, `${name(client)}: three of four is not enough`).toBe(Phase.DAY);
         }
         expect(silent.state!.readyForNight).toBe(false);
+
+        // Readiness is public: the phone that has not tapped can see that it is the last
+        // one missing, and every other phone sees the same three names.
+        const confirmed = [r1.playerUUID!, r2.playerUUID!, r3.playerUUID!].sort();
+        await Promise.all(
+            t.clients.map((c) =>
+                c.waitFor(
+                    (s) => s.players.filter((p) => p.isAlive && p.readyForNight).length === 3,
+                    'everyone sees who has confirmed',
+                ),
+            ),
+        );
+        for (const client of t.clients) {
+            const publiclyReady = client
+                .state!.players.filter((p) => p.isAlive && p.readyForNight)
+                .map((p) => p.playerUUID)
+                .sort();
+            expect(publiclyReady, `${name(client)}: the roster hides who has confirmed`).toEqual(confirmed);
+            expect(
+                client.state!.players.find((p) => p.playerUUID === silent.playerUUID)?.readyForNight,
+                `${name(client)}: the missing phone is named`,
+            ).toBe(false);
+        }
 
         silent.socket.emit('readyForNight', { gameId: t.gameId });
         await t.waitForPhaseEverywhere(Phase.NIGHT);

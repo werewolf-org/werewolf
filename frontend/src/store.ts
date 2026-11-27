@@ -12,6 +12,9 @@ export interface LocalPlayerModel {
     // Whether this player has cast their ballot in the current vote stage. Public on
     // purpose: the table is allowed to know who it is waiting for, never what they chose.
     hasVoted: boolean,
+    // Whether this player has confirmed the lynch result, so the day can end. Also public:
+    // naming the phone that has not tapped yet is the only way to unstick the table.
+    readyForNight: boolean,
 }
 
 export interface LocalAppState {

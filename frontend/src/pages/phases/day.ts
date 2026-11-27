@@ -4,7 +4,7 @@ import { getState, subscribeSelector } from '../../store';
 import { socketService } from '../../socket.service';
 import { audioService } from '../../audio.service';
 import { escapeHtml } from '../../html';
-import { nameList, waitingNamesText } from '../../vote-status';
+import { nameList, readyNamesText, waitingNamesText } from '../../vote-status';
 
 export class DayPhase extends View {
     private selectedNominationUUID: string | false | null = null;
@@ -433,18 +433,29 @@ export class DayPhase extends View {
 
         const controls = document.getElementById('day-result-controls');
         const waitingMsg = document.getElementById('night-waiting-message');
+        const waitingText = document.getElementById('night-waiting-text');
+        const waitingNames = document.getElementById('night-waiting-names');
+
+        // Readiness is public, exactly like participation in the trial: the point of the
+        // stage is to find the phone that has not tapped yet, so every player sees the same
+        // count and the same names. A dead player is not asked, so the tally is living only.
+        const alivePlayers = state.players.filter(p => p.isAlive);
+        const missing = alivePlayers.filter(p => !p.readyForNight);
+        const progressEl = document.getElementById('ready-progress');
+        const readyEl = document.getElementById('ready-waiting');
+        if (progressEl) progressEl.innerText = `${alivePlayers.length - missing.length} of ${alivePlayers.length} ready`;
+        if (readyEl) readyEl.innerText = readyNamesText(state);
 
         if (isDead) {
             if (controls) controls.style.display = 'none';
-            if (waitingMsg) {
-                waitingMsg.style.display = 'block';
-                waitingMsg.innerHTML = '<p class="fog-text">The dead have no say in the coming night. Waiting for the living...</p>';
-            }
+            if (waitingMsg) waitingMsg.style.display = 'block';
+            if (waitingText) waitingText.innerText = 'The dead have no say in the coming night. Waiting for the living...';
+            if (waitingNames) waitingNames.innerText = readyNamesText(state);
         } else if (isReady) {
             if (controls) controls.style.display = 'none';
-            if (waitingMsg) {
-                waitingMsg.style.display = 'block';
-            }
+            if (waitingMsg) waitingMsg.style.display = 'block';
+            if (waitingText) waitingText.innerText = 'Waiting for the sun to set... Close your eyes and surrender to the night.';
+            if (waitingNames) waitingNames.innerText = readyNamesText(state);
         } else {
             if (controls) controls.style.display = 'block';
             if (waitingMsg) waitingMsg.style.display = 'none';

@@ -220,6 +220,20 @@ describe("sync.provider", () => {
     }
   });
 
+  it("publishes who has confirmed the night, and nothing private about it", () => {
+    const game = createGameWithPlayers(3);
+    game.phase = Phase.DAY;
+    game.lynchDone = true;
+    game.players[0].readyForNight = true;
+
+    // Every seat sees the same participation flags, including the viewer's own.
+    const state = getLocalPlayerState(game, game.players[1]) as any;
+    expect(state.players.map((p: any) => p.readyForNight)).toEqual([true, false, false]);
+    expect(state.readyForNight).toBe(false);
+    expect(state.players[0]).not.toHaveProperty("socketId");
+    expect(state.players[0]).not.toHaveProperty("nightAction");
+  });
+
   it("hides voteResults until voting is complete", () => {
     const game = createGameWithPlayers(2);
     game.players[0].voteTargetUUID = "p1";

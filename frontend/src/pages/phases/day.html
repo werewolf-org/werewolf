@@ -30,6 +30,20 @@
         border-style: solid;
         border-color: var(--highlight);
     }
+    /* The action bar has to be reachable without scrolling. With five or more players the
+       roster pushes it below the fold on a phone, so the only way to confirm a nomination or
+       a ballot used to be to scroll past the list first. Sticky, not fixed: the bar stays in
+       the flow, so a short stage does not leave a floating button in empty space, and the
+       page still ends where it looks like it ends. */
+    .day-container .manager-controls {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        background-color: var(--bg-color);
+        padding-top: 12px;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.08);
+    }
 </style>
 
 <div class="day-container">
@@ -106,6 +120,10 @@
         <div class="pixel-card day-header">
             <h2 class="day-title">Judgment</h2>
             <p class="fog-text">The village has spoken...</p>
+            <div class="nomination-status-container" style="margin-top: 15px; text-align: center; padding: 10px; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                <p id="ready-progress" class="highlight-text" style="font-size: 1.2rem; margin-bottom: 0; text-shadow: none;">0 of 0 ready</p>
+                <p id="ready-waiting" class="fog-text" style="margin-bottom: 0; font-size: 0.85rem;"></p>
+            </div>
         </div>
 
         <div class="pixel-card" style="text-align: center;">
@@ -127,7 +145,8 @@
         </div>
 
         <div id="night-waiting-message" class="waiting-message" style="display: none;">
-            <p class="fog-text">Waiting for the sun to set... Close your eyes and surrender to the night.</p>
+            <p id="night-waiting-text" class="fog-text">Waiting for the sun to set... Close your eyes and surrender to the night.</p>
+            <p id="night-waiting-names" class="fog-text" style="font-size: 0.85rem;"></p>
         </div>
     </div>
 </div>
